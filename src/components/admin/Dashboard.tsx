@@ -16,6 +16,7 @@ import {
   TrendingUp,
   DollarSign,
   Activity,
+  BookOpen,
   Calendar,
   Clock,
   Star,
@@ -28,6 +29,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { Product } from '@/lib/firebase';
+import { BlogTab } from './BlogTab';
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('products');
@@ -92,6 +94,7 @@ const Dashboard = () => {
 
   const tabs = [
     { id: 'products', label: 'المنتجات', icon: Package },
+    { id: 'blog', label: 'المدونة', icon: BookOpen },
     { id: 'analytics', label: 'التحليلات', icon: BarChart3 },
     { id: 'customers', label: 'العملاء', icon: Users },
     { id: 'messages', label: 'الرسائل', icon: MessageSquare },
@@ -270,6 +273,12 @@ const Dashboard = () => {
 
           {/* Main Content */}
           <div className="lg:col-span-3">
+            {activeTab === 'blog' && (
+              <div className="bg-slate-900 rounded-2xl shadow-lg p-8 border border-white/10">
+                <BlogTab />
+              </div>
+            )}
+
             {activeTab === 'products' && (
               <div className="bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
                 <div className="flex justify-between items-center mb-8">

@@ -1,17 +1,54 @@
 'use client';
 
 import Link from 'next/link';
-import { Facebook, Twitter, Instagram, Linkedin, Mail, Phone, MapPin, Zap } from 'lucide-react';
+import { Facebook, Twitter, Instagram, Linkedin, Mail, Phone, MapPin, Zap, Youtube, MessageCircle } from 'lucide-react';
+import { useSiteName, useContactInfo, useSettings } from '../contexts/SettingsContext';
 
 const Footer = () => {
+  const siteName = useSiteName();
+  const { email, phone } = useContactInfo();
+  const { settings } = useSettings();
   const currentYear = new Date().getFullYear();
 
+  // Dynamic social links from settings
   const socialLinks = [
-    { icon: Facebook, href: '#', label: 'Facebook', color: 'hover:text-blue-600' },
-    { icon: Twitter, href: '#', label: 'Twitter', color: 'hover:text-blue-400' },
-    { icon: Instagram, href: '#', label: 'Instagram', color: 'hover:text-pink-600' },
-    { icon: Linkedin, href: '#', label: 'LinkedIn', color: 'hover:text-blue-700' },
-  ];
+    { 
+      icon: Facebook, 
+      href: settings.website.socialLinks.facebook, 
+      label: 'Facebook', 
+      color: 'hover:text-blue-600' 
+    },
+    { 
+      icon: Twitter, 
+      href: settings.website.socialLinks.twitter, 
+      label: 'Twitter', 
+      color: 'hover:text-blue-400' 
+    },
+    { 
+      icon: Instagram, 
+      href: settings.website.socialLinks.instagram, 
+      label: 'Instagram', 
+      color: 'hover:text-pink-600' 
+    },
+    { 
+      icon: Youtube, 
+      href: settings.website.socialLinks.youtube, 
+      label: 'YouTube', 
+      color: 'hover:text-red-500' 
+    },
+    { 
+      icon: Linkedin, 
+      href: settings.website.socialLinks.linkedin, 
+      label: 'LinkedIn', 
+      color: 'hover:text-blue-700' 
+    },
+    { 
+      icon: MessageCircle, 
+      href: settings.website.socialLinks.telegram, 
+      label: 'Telegram', 
+      color: 'hover:text-blue-500' 
+    },
+  ].filter(link => link.href && link.href.trim() !== ''); // Only show links that have values
 
   const quickLinks = [
     { name: 'الرئيسية', href: '#home' },
@@ -39,8 +76,8 @@ const Footer = () => {
                 <Zap className="w-4 h-4 md:w-6 md:h-6 text-white" />
               </div>
               <div className="flex flex-col">
-                <span className="text-lg md:text-2xl font-bold">وفرلي</span>
-                <span className="text-xs text-gray-400 -mt-1 hidden md:block">Wafrly</span>
+                <span className="text-lg md:text-2xl font-bold">{siteName.split(' - ')[0]}</span>
+                <span className="text-xs text-gray-400 -mt-1 hidden md:block">{siteName.split(' - ')[1] || 'wafarle'}</span>
               </div>
             </Link>
             
@@ -53,11 +90,11 @@ const Footer = () => {
             <div className="space-y-3">
               <div className="flex items-center gap-3 text-gray-300">
                 <Phone className="w-4 h-4 text-blue-400" />
-                <span>0593607607</span>
+                <span>{phone}</span>
               </div>
               <div className="flex items-center gap-3 text-gray-300">
                 <Mail className="w-4 h-4 text-blue-400" />
-                <span>ceo@wafrly.com</span>
+                <span>{email}</span>
               </div>
               <div className="flex items-center gap-3 text-gray-300">
                 <MapPin className="w-4 h-4 text-blue-400" />
@@ -106,21 +143,25 @@ const Footer = () => {
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-6">
               <span className="text-gray-400">تابعنا على:</span>
-              <div className="flex items-center gap-4">
-                {socialLinks.map((social) => {
-                  const Icon = social.icon;
-                  return (
-                    <a
-                      key={social.label}
-                      href={social.href}
-                      className={`w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center text-gray-400 transition-all duration-300 ${social.color}`}
-                      aria-label={social.label}
-                    >
-                      <Icon className="w-5 h-5" />
-                    </a>
-                  );
-                })}
-              </div>
+              {socialLinks.length > 0 && (
+                <div className="flex items-center gap-4">
+                  {socialLinks.map((social) => {
+                    const Icon = social.icon;
+                    return (
+                      <a
+                        key={social.label}
+                        href={social.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center text-gray-400 transition-all duration-300 ${social.color}`}
+                        aria-label={social.label}
+                      >
+                        <Icon className="w-5 h-5" />
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="text-gray-400 text-sm">

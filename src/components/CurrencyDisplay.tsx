@@ -1,97 +1,44 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-
-interface Currency {
-  id: string;
-  code: string;
-  name: string;
-  symbol: string;
-  rate: number;
-  isDefault: boolean;
-  isActive: boolean;
-}
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { getCurrencyByCode } from '@/lib/currency';
 
 interface CurrencyDisplayProps {
   price: number;
   originalCurrency?: string;
   className?: string;
+  showOriginalPrice?: boolean;
 }
 
-const CurrencyDisplay = ({ price, originalCurrency = 'USD', className = '' }: CurrencyDisplayProps) => {
-  const [currencies, setCurrencies] = useState<Currency[]>([]);
-  const [defaultCurrency, setDefaultCurrency] = useState<Currency | null>(null);
-  const [convertedPrice, setConvertedPrice] = useState<number>(price);
-
-  // Mock currencies data (same as in CurrencySettings)
-  useEffect(() => {
-    const mockCurrencies: Currency[] = [
-      {
-        id: '1',
-        code: 'SAR',
-        name: 'الريال السعودي',
-        symbol: 'ر.س',
-        rate: 1,
-        isDefault: true,
-        isActive: true,
-      },
-      {
-        id: '2',
-        code: 'USD',
-        name: 'الدولار الأمريكي',
-        symbol: '$',
-        rate: 0.27,
-        isDefault: false,
-        isActive: true,
-      },
-      {
-        id: '3',
-        code: 'EUR',
-        name: 'اليورو الأوروبي',
-        symbol: '€',
-        rate: 0.24,
-        isDefault: false,
-        isActive: true,
-      },
-      {
-        id: '4',
-        code: 'AED',
-        name: 'الدرهم الإماراتي',
-        symbol: 'د.إ',
-        rate: 0.98,
-        isDefault: false,
-        isActive: true,
-      },
-    ];
-
-    setCurrencies(mockCurrencies);
-    const defaultCurr = mockCurrencies.find(c => c.isDefault);
-    setDefaultCurrency(defaultCurr || null);
-  }, []);
-
-  // Convert price to default currency
-  useEffect(() => {
-    if (defaultCurrency && currencies.length > 0) {
-      const originalCurr = currencies.find(c => c.code === originalCurrency);
-      if (originalCurr) {
-        // Convert from original currency to SAR (default), then to display currency
-        const priceInSAR = price / originalCurr.rate;
-        const finalPrice = priceInSAR * defaultCurrency.rate;
-        setConvertedPrice(finalPrice);
-      } else {
-        // If original currency not found, assume it's already in default currency
-        setConvertedPrice(price);
-      }
-    }
-  }, [price, originalCurrency, defaultCurrency, currencies]);
-
-  if (!defaultCurrency) {
-    return <span className={className}>${price}</span>;
-  }
+const CurrencyDisplay = ({ 
+  price, 
+  originalCurrency = 'USD', 
+  className = '',
+  showOriginalPrice 
+}: CurrencyDisplayProps) => {
+  const { formatPrice, convertPrice, settings } = useCurrency();
+  
+  // Get the original currency object
+  const fromCurrency = getCurrencyByCode(originalCurrency);
+  
+  // Convert price to current currency if needed
+  const convertedPrice = convertPrice(price, fromCurrency, settings.currentCurrency);
+  
+  // Format the converted price
+  const formattedPrice = formatPrice(convertedPrice, settings.currentCurrency);
+  
+  // Show original price if enabled and currencies are different
+  const shouldShowOriginal = (showOriginalPrice ?? settings.showOriginalPrice) && 
+                            originalCurrency !== settings.currentCurrency.code;
 
   return (
     <span className={className}>
-      {defaultCurrency.symbol}{convertedPrice.toFixed(2)}
+      {formattedPrice}
+      {shouldShowOriginal && (
+        <span className="text-xs text-gray-500 ml-1">
+          ({formatPrice(price, fromCurrency)})
+        </span>
+      )}
     </span>
   );
 };

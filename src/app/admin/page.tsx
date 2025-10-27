@@ -169,7 +169,7 @@ const LoginPage = () => {
                   onChange={handleChange}
                   required
                   className="w-full pl-12 pr-4 py-4 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all duration-300 backdrop-blur-sm"
-                  placeholder="admin@wafrly.com"
+                  placeholder="admin@wafarle.com"
                 />
               </div>
             </div>
@@ -251,7 +251,7 @@ const LoginPage = () => {
             <div className="space-y-2 text-sm text-white/70">
               <div className="flex items-center gap-2">
                 <Mail className="w-3 h-3" />
-                <span><strong>البريد:</strong> admin@wafrly.com</span>
+                <span><strong>البريد:</strong> admin@wafarle.com</span>
               </div>
               <div className="flex items-center gap-2">
                 <Lock className="w-3 h-3" />

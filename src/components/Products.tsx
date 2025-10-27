@@ -2,14 +2,18 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ExternalLink, Star, Clock, Shield, Zap } from 'lucide-react';
+import { ExternalLink, Star, Clock, Shield, Zap, ShoppingCart } from 'lucide-react';
 import { Product } from '@/lib/firebase';
+import { getProducts } from '@/lib/database';
 import CurrencyDisplay from './CurrencyDisplay';
+import OrderForm from './OrderForm';
 
 const Products = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [showOrderForm, setShowOrderForm] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const categories = [
     { id: 'all', name: 'الكل', icon: '🌟' },
@@ -101,11 +105,34 @@ const Products = () => {
       },
     ];
 
-    setTimeout(() => {
-      setProducts(mockProducts);
-      setLoading(false);
-    }, 1000);
+    // Load real products from database
+    const loadProducts = async () => {
+      try {
+        const productsData = await getProducts();
+        setProducts(productsData);
+      } catch (error) {
+        console.error('Error loading products:', error);
+        // Fallback to mock products if Firebase fails
+        setProducts(mockProducts);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProducts();
   }, []);
+
+  // Handle order button click
+  const handleOrderClick = (product: Product) => {
+    setSelectedProduct(product);
+    setShowOrderForm(true);
+  };
+
+  // Close order form
+  const handleCloseOrderForm = () => {
+    setShowOrderForm(false);
+    setSelectedProduct(null);
+  };
 
   const filteredProducts = selectedCategory === 'all' 
     ? products 
@@ -236,15 +263,24 @@ const Products = () => {
                     </div>
                   </div>
                   
-                  <a
-                    href={product.externalLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn-primary w-full justify-center"
-                  >
-                    اشتر الآن
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => handleOrderClick(product)}
+                      className="bg-gradient-to-r from-primary-gold to-yellow-500 hover:from-primary-gold/90 hover:to-yellow-500/90 text-white px-4 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 text-sm"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                      اطلب الآن
+                    </button>
+                    <a
+                      href={product.externalLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-gradient-to-r from-primary-dark-navy to-blue-800 hover:from-primary-dark-navy/90 hover:to-blue-800/90 text-white px-4 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 text-sm"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      اشتر مباشرة
+                    </a>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -276,6 +312,15 @@ const Products = () => {
           </div>
         </motion.div>
       </div>
+
+      {/* Order Form Modal */}
+      {selectedProduct && (
+        <OrderForm
+          product={selectedProduct}
+          isOpen={showOrderForm}
+          onClose={handleCloseOrderForm}
+        />
+      )}
     </section>
   );
 };

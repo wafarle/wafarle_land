@@ -50,7 +50,7 @@ const Contact = () => {
     {
       icon: Mail,
       title: 'راسلنا',
-      details: 'ceo@wafrly.com',
+      details: 'ceo@wafarle.com',
       description: 'سنرد خلال 24 ساعة',
       color: 'from-emerald-500 to-emerald-600',
     },
@@ -232,6 +232,26 @@ const Contact = () => {
                 </button>
               </form>
             )}
+              {/* Quick Actions */}
+              <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-6 text-white mt-4">
+              <h4 className="font-bold text-lg mb-4">تواصل معنا مباشرة</h4>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <a
+                  href="tel:0593607607"
+                  className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-3 rounded-xl transition-colors duration-300"
+                >
+                  <Phone className="w-4 h-4" />
+                  اتصل الآن
+                </a>
+                <a
+                  href="mailto:ceo@wafarle.com"
+                  className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-3 rounded-xl transition-colors duration-300"
+                >
+                  <Mail className="w-4 h-4" />
+                  أرسل إيميل
+                </a>
+              </div>
+            </div>
           </motion.div>
 
           {/* Contact Information */}
@@ -272,26 +292,7 @@ const Contact = () => {
               })}
             </div>
 
-            {/* Quick Actions */}
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-6 text-white">
-              <h4 className="font-bold text-lg mb-4">تواصل معنا مباشرة</h4>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <a
-                  href="tel:0593607607"
-                  className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-3 rounded-xl transition-colors duration-300"
-                >
-                  <Phone className="w-4 h-4" />
-                  اتصل الآن
-                </a>
-                <a
-                  href="mailto:ceo@wafrly.com"
-                  className="flex items-center justify-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-3 rounded-xl transition-colors duration-300"
-                >
-                  <Mail className="w-4 h-4" />
-                  أرسل إيميل
-                </a>
-              </div>
-            </div>
+          
           </motion.div>
         </div>
       </div>

@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Cairo } from "next/font/google";
 import "./globals.css";
+import { CurrencyProvider } from "@/contexts/CurrencyContext";
+import { SettingsProvider } from "@/contexts/SettingsContext";
+import MaintenanceWrapper from "@/components/MaintenanceWrapper";
+import AnalyticsProvider from "@/components/AnalyticsProvider";
 
 const cairo = Cairo({
   subsets: ["latin", "arabic"],
@@ -21,7 +25,14 @@ export default function RootLayout({
   return (
         <html lang="ar" dir="rtl">
       <body className={`${cairo.variable} font-cairo antialiased`}>
-        {children}
+        <SettingsProvider>
+          <CurrencyProvider>
+            <MaintenanceWrapper>
+              {children}
+            </MaintenanceWrapper>
+            <AnalyticsProvider />
+          </CurrencyProvider>
+        </SettingsProvider>
       </body>
     </html>
   );

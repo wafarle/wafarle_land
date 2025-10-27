@@ -35,7 +35,7 @@ const LoginForm = ({ onLogin }: { onLogin: (username: string, password: string) 
             <div className="w-16 h-16 bg-gradient-to-r from-primary-orange to-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <span className="text-white font-bold text-2xl">W</span>
             </div>
-            <h1 className="text-2xl font-bold text-primary-dark-navy">Wafrly Admin</h1>
+            <h1 className="text-2xl font-bold text-primary-dark-navy">wafarle Admin</h1>
             <p className="text-gray-600 mt-2">Sign in to your dashboard</p>
           </div>
 

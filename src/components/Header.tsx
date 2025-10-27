@@ -1,12 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSiteName, useContactInfo } from '../contexts/SettingsContext';
 import Link from 'next/link';
-import { Menu, X, Zap, Phone, Mail } from 'lucide-react';
+import { Menu, X, Zap, Phone, Mail, User, LogIn, UserPlus, LogOut } from 'lucide-react';
+import { onCustomerAuthStateChange, signOutCustomer, CustomerUser } from '@/lib/customerAuth';
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const siteName = useSiteName();
+  const { phone } = useContactInfo();
   const [isScrolled, setIsScrolled] = useState(false);
+  const [customerUser, setCustomerUser] = useState<CustomerUser | null>(null);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -17,10 +23,30 @@ const Header = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Listen to customer auth state
+  useEffect(() => {
+    const unsubscribe = onCustomerAuthStateChange((user) => {
+      setCustomerUser(user);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await signOutCustomer();
+      setUserMenuOpen(false);
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
+
   const navItems = [
     { name: 'الرئيسية', href: '#home' },
     { name: 'الخدمات', href: '#services' },
     { name: 'المميزات', href: '#features' },
+    { name: 'المدونة', href: '/blog' },
     { name: 'الأسعار', href: '#pricing' },
     { name: 'تواصل معنا', href: '#contact' },
   ];
@@ -42,7 +68,7 @@ const Header = () => {
             </div>
             <div className="flex flex-col">
               <span className="text-lg md:text-2xl font-bold text-gradient">وفرلي</span>
-              <span className="text-xs text-gray-500 -mt-1 hidden md:block">Wafrly</span>
+              <span className="text-xs text-gray-500 -mt-1 hidden md:block">wafarle</span>
             </div>
           </Link>
 
@@ -60,21 +86,88 @@ const Header = () => {
             ))}
           </nav>
 
-          {/* Contact Info & CTA */}
+          {/* Contact Info & Auth Buttons */}
           <div className="hidden lg:flex items-center gap-6">
+            {/* Contact Info */}
             <div className="flex items-center gap-4 text-sm text-gray-600">
               <div className="flex items-center gap-2">
                 <Phone className="w-4 h-4 text-blue-600" />
-                <span>0593607607</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-blue-600" />
-                <span>ceo@wafrly.com</span>
+                <span>{phone}</span>
               </div>
             </div>
-            <Link href="#contact" className="btn-primary">
-              ابدأ الآن
-            </Link>
+
+            {/* Auth Section */}
+            {customerUser ? (
+              /* User Menu */
+              <div className="relative">
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  <User className="w-4 h-4 text-gray-600" />
+                  <span className="text-sm font-medium text-gray-700">
+                    {customerUser.displayName || 'حسابي'}
+                  </span>
+                </button>
+
+                {userMenuOpen && (
+                  <>
+                    {/* Backdrop */}
+                    <div 
+                      className="fixed inset-0 z-10"
+                      onClick={() => setUserMenuOpen(false)}
+                    />
+                    
+                    {/* Dropdown Menu */}
+                    <div className="absolute left-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-20 overflow-hidden">
+                      <div className="py-2">
+                        <div className="px-4 py-3 border-b border-gray-100">
+                          <div className="text-sm font-medium text-gray-900">
+                            {customerUser.displayName || 'العميل'}
+                          </div>
+                          <div className="text-xs text-gray-500">{customerUser.email}</div>
+                        </div>
+                        
+                        <Link
+                          href="/customer/dashboard"
+                          className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                          onClick={() => setUserMenuOpen(false)}
+                        >
+                          <User className="w-4 h-4" />
+                          لوحة التحكم
+                        </Link>
+                        
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          تسجيل الخروج
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              /* Login/Register Buttons */
+              <div className="flex items-center gap-3">
+                <Link 
+                  href="/auth/login"
+                  className="flex items-center gap-2 px-4 py-2 text-blue-600 hover:text-blue-700 font-medium transition-colors"
+                >
+                  <LogIn className="w-4 h-4" />
+                  تسجيل الدخول
+                </Link>
+                <Link 
+                  href="/auth/register"
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  إنشاء حساب
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Mobile menu button */}
@@ -101,23 +194,66 @@ const Header = () => {
                 </Link>
               ))}
               <div className="pt-4 border-t border-gray-200">
-                <div className="flex flex-col gap-3 mb-4">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Phone className="w-4 h-4 text-blue-600" />
-                    <span>0593607607</span>
+                {customerUser ? (
+                  /* Authenticated User */
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                      <User className="w-5 h-5 text-gray-600" />
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {customerUser.displayName || 'العميل'}
+                        </div>
+                        <div className="text-xs text-gray-500">{customerUser.email}</div>
+                      </div>
+                    </div>
+                    
+                    <Link
+                      href="/customer/dashboard"
+                      className="flex items-center gap-2 p-3 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <User className="w-4 h-4" />
+                      لوحة التحكم
+                    </Link>
+                    
+                    <button
+                      onClick={() => {
+                        handleLogout();
+                        setIsMenuOpen(false);
+                      }}
+                      className="flex items-center gap-2 p-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors text-right w-full"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      تسجيل الخروج
+                    </button>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Mail className="w-4 h-4 text-blue-600" />
-                    <span>ceo@wafrly.com</span>
+                ) : (
+                  /* Not Authenticated */
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                      <Phone className="w-4 h-4 text-blue-600" />
+                      <span>{phone}</span>
+                    </div>
+                    
+                    <Link
+                      href="/auth/login"
+                      className="flex items-center gap-2 p-3 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <LogIn className="w-4 h-4" />
+                      تسجيل الدخول
+                    </Link>
+                    
+                    <Link
+                      href="/auth/register"
+                      className="flex items-center gap-2 p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-center justify-center"
+                      onClick={() => setIsMenuOpen(false)}
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      إنشاء حساب
+                    </Link>
                   </div>
-                </div>
-                <Link 
-                  href="#contact" 
-                  className="btn-primary w-full"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  ابدأ الآن
-                </Link>
+                )}
               </div>
             </nav>
           </div>
