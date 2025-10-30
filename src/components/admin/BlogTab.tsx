@@ -61,16 +61,10 @@ export const BlogTab = () => {
     }
   };
 
-  const handleEdit = (post: BlogPost) => {
-    router.push(`/admin/blog/edit/${post.id}`);
+  const handleEdit = (postId: string) => {
+    router.push(`/admin/blog/edit/${postId}`);
   };
 
-  const handleResetStorage = () => {
-    if (window.confirm('هل أنت متأكد من حذف جميع المقالات المحفوظة محلياً؟ سيتم العودة للمقالات الافتراضية.')) {
-      localStorage.removeItem('mockBlogPosts');
-      window.location.reload(); // Reload to reinitialize with default posts
-    }
-  };
 
   const handleDelete = async (postId: string) => {
     if (window.confirm('هل أنت متأكد من حذف هذا المقال؟')) {
@@ -121,13 +115,13 @@ export const BlogTab = () => {
 
   return (
     <div className="space-y-6">
-      {/* Storage Notice */}
-      <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-4">
-        <div className="flex items-center gap-3 text-blue-200">
+      {/* Firebase Notice */}
+      <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
+        <div className="flex items-center gap-3 text-green-200">
           <Database className="w-5 h-5" />
           <div>
-            <p className="font-medium">التخزين المحلي مُفعّل</p>
-            <p className="text-sm text-blue-300/70">المقالات الجديدة تُحفظ في متصفحك وستبقى بعد تحديث الصفحة</p>
+            <p className="font-medium">قاعدة البيانات Firebase مُفعّلة</p>
+            <p className="text-sm text-green-300/70">جميع البيانات (المقالات، المنتجات، العملاء) تُحفظ في قاعدة البيانات الحقيقية</p>
           </div>
         </div>
       </div>
@@ -139,23 +133,13 @@ export const BlogTab = () => {
           <p className="text-white/60">إدارة مقالات ومحتوى المدونة</p>
         </div>
         
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleResetStorage}
-            className="px-4 py-2 bg-red-500/20 text-red-300 rounded-xl font-medium hover:bg-red-500/30 transition-all duration-300 flex items-center gap-2 border border-red-500/30"
-            title="حذف البيانات المحلية والعودة للافتراضي"
-          >
-            <RefreshCw className="w-4 h-4" />
-            إعادة تعيين
-          </button>
-          <button
-            onClick={() => router.push('/admin/blog/new')}
-            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-medium hover:from-blue-600 hover:to-purple-700 transition-all duration-300 flex items-center gap-2"
-          >
-            <Plus className="w-5 h-5" />
-            مقال جديد
-          </button>
-        </div>
+        <button
+          onClick={() => router.push('/admin/blog/new')}
+          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl font-medium hover:from-blue-600 hover:to-purple-700 transition-all duration-300 flex items-center gap-2"
+        >
+          <Plus className="w-5 h-5" />
+          مقال جديد
+        </button>
       </div>
 
       {/* Search and Filter */}
@@ -219,8 +203,17 @@ export const BlogTab = () => {
               >
                 {/* Featured Image */}
                 {post.featuredImage && (
-                  <div className="h-48 bg-gradient-to-r from-blue-500/20 to-purple-500/20 relative">
-                    <Image className="w-full h-full object-cover opacity-50" />
+                  <div className="h-48 relative">
+                    <img 
+                      src={post.featuredImage} 
+                      alt={post.title}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none';
+                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                      }}
+                    />
                     {post.featured && (
                       <div className="absolute top-3 right-3">
                         <span className="bg-yellow-500 text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
@@ -250,7 +243,7 @@ export const BlogTab = () => {
                     
                     <div className="flex items-center gap-1">
                       <button 
-                        onClick={() => handleEdit(post)}
+                        onClick={() => handleEdit(post.id)}
                         className="p-2 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg transition-colors"
                         title="تحرير"
                       >

@@ -167,7 +167,7 @@ export const useCurrency = () => {
   return settings.website.currency;
 };
 
-export const useLanguage = () => {
+export const useSEO = () => {
   const { settings } = useSettings();
-  return settings.website.language;
+  return settings.website.seo;
 };

@@ -108,12 +108,7 @@ const Contact = () => {
             className="card"
             style={{ padding: '15px' }}
           >
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-                <MessageCircle className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold text-gray-900">أرسل لنا رسالة</h3>
-            </div>
+         
 
             {isSubmitted ? (
               <div className="text-center py-12">
@@ -234,7 +229,6 @@ const Contact = () => {
             )}
               {/* Quick Actions */}
               <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl p-6 text-white mt-4">
-              <h4 className="font-bold text-lg mb-4">تواصل معنا مباشرة</h4>
               <div className="flex flex-col sm:flex-row gap-3">
                 <a
                   href="tel:0593607607"
@@ -261,12 +255,7 @@ const Contact = () => {
             transition={{ duration: 0.6 }}
             className="space-y-6"
           >
-            <div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-6">معلومات التواصل</h3>
-              <p className="text-gray-600 mb-8">
-                نحن متاحون لمساعدتك في أي وقت. اختر الطريقة التي تناسبك للتواصل معنا.
-              </p>
-            </div>
+           
 
             <div className="space-y-4">
               {contactInfo.map((info, index) => {

@@ -5,6 +5,8 @@ import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import MaintenanceWrapper from "@/components/MaintenanceWrapper";
 import AnalyticsProvider from "@/components/AnalyticsProvider";
+import SEOHead from "@/components/SEOHead";
+import { NotificationManager } from "@/components/NotificationManager";
 
 const cairo = Cairo({
   subsets: ["latin", "arabic"],
@@ -27,10 +29,12 @@ export default function RootLayout({
       <body className={`${cairo.variable} font-cairo antialiased`}>
         <SettingsProvider>
           <CurrencyProvider>
+            <SEOHead />
             <MaintenanceWrapper>
               {children}
             </MaintenanceWrapper>
             <AnalyticsProvider />
+            <NotificationManager />
           </CurrencyProvider>
         </SettingsProvider>
       </body>

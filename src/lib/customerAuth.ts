@@ -6,9 +6,11 @@ import {
   signOut, 
   onAuthStateChanged,
   User,
-  updateProfile
+  updateProfile,
+  signInWithPopup,
+  GoogleAuthProvider
 } from 'firebase/auth';
-import { auth, FIREBASE_ENABLED } from '@/lib/firebase';
+import { auth, googleProvider, FIREBASE_ENABLED } from '@/lib/firebase';
 import { addCustomer, updateCustomer, getCustomers } from '@/lib/database';
 import { Customer } from '@/lib/firebase';
 
@@ -82,6 +84,85 @@ export const signUpCustomer = async (
   } catch (error: any) {
     console.error('Error signing up customer:', error);
     throw new Error(error.message || 'حدث خطأ في إنشاء الحساب');
+  }
+};
+
+// Sign in with Google
+export const signInWithGoogle = async (): Promise<CustomerUser> => {
+  if (!FIREBASE_ENABLED || !auth || !googleProvider) {
+    console.log('Firebase not enabled, using mock Google signin');
+    // Return mock user for development
+    return {
+      uid: 'mock-google-' + Date.now(),
+      email: 'google.user@example.com',
+      displayName: 'مستخدم Google',
+      customerId: 'mock-google-customer-' + Date.now()
+    };
+  }
+
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    const user = result.user;
+    
+    // Check if customer exists in database
+    const customers = await getCustomers();
+    let customerData = customers.find(c => c.email === user.email);
+    
+    // If customer doesn't exist, create new customer record
+    if (!customerData) {
+      const customerId = await addCustomer({
+        name: user.displayName || 'مستخدم Google',
+        email: user.email || '',
+        phone: user.phoneNumber || '',
+        status: 'active',
+        lastOrderDate: new Date(),
+        authProvider: 'google'
+      });
+      
+      customerData = {
+        id: customerId,
+        name: user.displayName || 'مستخدم Google',
+        email: user.email || '',
+        phone: user.phoneNumber || '',
+        status: 'active',
+        lastOrderDate: new Date(),
+        authProvider: 'google',
+        totalOrders: 0,
+        totalSpent: 0,
+        averageOrderValue: 0,
+        registrationDate: new Date()
+      };
+    } else {
+      // Update existing customer with Google info if needed
+      if (!customerData.authProvider) {
+        await updateCustomer(customerData.id, {
+          authProvider: 'google'
+        });
+      }
+    }
+
+    console.log('✅ Customer signed in with Google successfully:', user.uid);
+
+    return {
+      uid: user.uid,
+      email: user.email || '',
+      displayName: user.displayName || customerData.name,
+      phone: user.phoneNumber || customerData.phone,
+      customerId: customerData.id
+    };
+  } catch (error: any) {
+    console.error('Error signing in with Google:', error);
+    
+    let errorMessage = 'حدث خطأ في تسجيل الدخول باستخدام Google';
+    if (error.code === 'auth/popup-closed-by-user') {
+      errorMessage = 'تم إغلاق نافذة تسجيل الدخول';
+    } else if (error.code === 'auth/popup-blocked') {
+      errorMessage = 'تم حظر نافذة تسجيل الدخول، يرجى السماح بالنوافذ المنبثقة';
+    } else if (error.code === 'auth/cancelled-popup-request') {
+      errorMessage = 'تم إلغاء طلب تسجيل الدخول';
+    }
+    
+    throw new Error(errorMessage);
   }
 };
 

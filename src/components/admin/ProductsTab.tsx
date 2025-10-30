@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Edit, Trash2, Search, Filter, Star, X, Clock, Tag, Zap } from 'lucide-react';
-import { Product, ProductOption } from '@/lib/firebase';
+import { Plus, Edit, Trash2, Search, Filter, Star, X, Clock, Tag, Zap, Package, AlertCircle } from 'lucide-react';
+import { Product, ProductOption, ProductType } from '@/lib/firebase';
 import CurrencyDisplay from '@/components/CurrencyDisplay';
 
 // Products Tab Component
@@ -71,6 +71,27 @@ export const ProductsTab = ({
             <div className="flex-1">
               <h3 className="font-bold text-white text-lg">{product.name}</h3>
               <p className="text-sm text-white/60">{product.description}</p>
+              {/* عرض حالة المخزون */}
+              {product.productType === 'physical' && product.stockManagementEnabled && (
+                <div className="mt-2">
+                  {product.outOfStock || (product.stock || 0) <= 0 ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-500/20 text-red-400 rounded-lg text-xs font-semibold">
+                      <X className="w-3 h-3" />
+                      نفد من المخزون
+                    </span>
+                  ) : (product.stock || 0) <= (product.lowStockThreshold || 10) ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-lg text-xs font-semibold">
+                      <AlertCircle className="w-3 h-3" />
+                      مخزون منخفض ({product.stock})
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-400 rounded-lg text-xs font-semibold">
+                      <Package className="w-3 h-3" />
+                      متوفر ({product.stock})
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           
@@ -191,6 +212,22 @@ export const ProductForm = ({
     hasOptions: product?.hasOptions || false,
     options: product?.options || [],
     defaultOptionId: product?.defaultOptionId || '',
+    productType: product?.productType || 'digital' as ProductType,
+    // حقول المنتج الملموس
+    weight: product?.weight || 0,
+    dimensions: product?.dimensions || '',
+    requiresShipping: product?.requiresShipping !== undefined ? product.requiresShipping : true,
+    // حقول المنتج الرقمي/التنزيل
+    downloadLink: product?.downloadLink || '',
+    downloadExpiryDays: product?.downloadExpiryDays || 0,
+    // حقول الخدمة
+    serviceDuration: product?.serviceDuration || '',
+    serviceDetails: product?.serviceDetails || '',
+    // Inventory Management
+    stockManagementEnabled: product?.stockManagementEnabled || false,
+    stock: product?.stock || 0,
+    lowStockThreshold: product?.lowStockThreshold || 10,
+    outOfStock: product?.outOfStock || false,
   });
 
   const [currentOption, setCurrentOption] = useState<Partial<ProductOption>>({
@@ -271,7 +308,45 @@ export const ProductForm = ({
       return;
     }
 
-    onSave(formData);
+    // التحقق من الحقول المطلوبة حسب نوع المنتج
+    if (formData.productType === 'download' && !formData.downloadLink) {
+      alert('يرجى إدخال رابط التحميل للمنتج الذي يحتاج تنزيل');
+      return;
+    }
+
+    // تنظيف البيانات: إزالة الحقول غير المستخدمة حسب نوع المنتج
+    const cleanedData: any = { ...formData };
+    
+    if (formData.productType !== 'physical') {
+      delete cleanedData.weight;
+      delete cleanedData.dimensions;
+      delete cleanedData.requiresShipping;
+      delete cleanedData.stockManagementEnabled;
+      delete cleanedData.stock;
+      delete cleanedData.lowStockThreshold;
+      delete cleanedData.outOfStock;
+    } else {
+      // للمنتجات الملموسة، تأكد من تحديث outOfStock بناءً على stock
+      if (cleanedData.stockManagementEnabled) {
+        cleanedData.outOfStock = (cleanedData.stock || 0) <= 0;
+      } else {
+        delete cleanedData.stock;
+        delete cleanedData.outOfStock;
+        delete cleanedData.lowStockThreshold;
+      }
+    }
+    
+    if (formData.productType !== 'digital' && formData.productType !== 'download') {
+      delete cleanedData.downloadLink;
+      delete cleanedData.downloadExpiryDays;
+    }
+    
+    if (formData.productType !== 'service') {
+      delete cleanedData.serviceDuration;
+      delete cleanedData.serviceDetails;
+    }
+
+    onSave(cleanedData);
   };
 
   return (
@@ -352,6 +427,286 @@ export const ProductForm = ({
               className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all duration-300 resize-none"
               placeholder="أدخل وصف المنتج"
             />
+          </div>
+
+          {/* نوع المنتج */}
+          <div className="border-t border-white/20 pt-6">
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-white/90 mb-2">
+                نوع المنتج *
+              </label>
+              <select
+                value={formData.productType}
+                onChange={(e) => setFormData({ ...formData, productType: e.target.value as ProductType })}
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-white focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all duration-300"
+                required
+              >
+                <option value="digital">منتج رقمي</option>
+                <option value="physical">منتج ملموس</option>
+                <option value="download">منتج يحتاج تنزيل</option>
+                <option value="service">خدمة</option>
+              </select>
+              <p className="text-xs text-white/60 mt-1">
+                اختر نوع المنتج لإظهار الحقول المناسبة
+              </p>
+            </div>
+
+            {/* حقول المنتج الملموس */}
+            {formData.productType === 'physical' && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="space-y-4 bg-white/5 border border-white/10 rounded-2xl p-6 mt-4"
+              >
+                <h4 className="text-lg font-bold text-white mb-4">معلومات الشحن</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-white/90 mb-2">
+                      الوزن (كجم)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.weight}
+                      onChange={(e) => setFormData({ ...formData, weight: parseFloat(e.target.value) || 0 })}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all duration-300"
+                      placeholder="مثال: 2.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-white/90 mb-2">
+                      الأبعاد
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.dimensions}
+                      onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all duration-300"
+                      placeholder="مثال: 10x20x30 سم"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="requiresShipping"
+                    checked={formData.requiresShipping}
+                    onChange={(e) => setFormData({ ...formData, requiresShipping: e.target.checked })}
+                    className="rounded border-white/20 bg-white/10 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="requiresShipping" className="text-sm text-white/80">
+                    يحتاج شحن
+                  </label>
+                </div>
+
+                {/* إدارة المخزون للمنتجات الملموسة */}
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="space-y-4 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-400/20 rounded-2xl p-6 mt-4"
+                >
+                  <h4 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <Tag className="w-5 h-5" />
+                    إدارة المخزون
+                  </h4>
+                  
+                  <div className="flex items-center gap-3 mb-4">
+                    <input
+                      type="checkbox"
+                      id="stockManagementEnabled"
+                      checked={formData.stockManagementEnabled}
+                      onChange={(e) => setFormData({ 
+                        ...formData, 
+                        stockManagementEnabled: e.target.checked,
+                        outOfStock: !e.target.checked ? false : (formData.stock || 0) <= 0
+                      })}
+                      className="rounded border-white/20 bg-white/10 text-green-600 focus:ring-green-500 w-5 h-5"
+                    />
+                    <label htmlFor="stockManagementEnabled" className="text-sm font-semibold text-white/90">
+                      تفعيل إدارة المخزون
+                    </label>
+                  </div>
+
+                  {formData.stockManagementEnabled && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                    >
+                      <div>
+                        <label className="block text-sm font-semibold text-white/90 mb-2">
+                          الكمية المتاحة *
+                        </label>
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          value={formData.stock}
+                          onChange={(e) => {
+                            const stockValue = parseInt(e.target.value) || 0;
+                            setFormData({ 
+                              ...formData, 
+                              stock: stockValue,
+                              outOfStock: stockValue <= 0
+                            });
+                          }}
+                          className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-green-400 focus:ring-2 focus:ring-green-400/30 transition-all duration-300"
+                          placeholder="0"
+                          required={formData.stockManagementEnabled}
+                        />
+                        {formData.stock <= 0 && formData.stockManagementEnabled && (
+                          <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
+                            <X className="w-3 h-3" />
+                            المنتج نفد من المخزون
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-white/90 mb-2">
+                          حد التنبيه للكمية المنخفضة
+                        </label>
+                        <input
+                          type="number"
+                          step="1"
+                          min="0"
+                          value={formData.lowStockThreshold}
+                          onChange={(e) => setFormData({ ...formData, lowStockThreshold: parseInt(e.target.value) || 10 })}
+                          className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-yellow-400 focus:ring-2 focus:ring-yellow-400/30 transition-all duration-300"
+                          placeholder="10"
+                        />
+                        <p className="text-xs text-white/60 mt-1">
+                          سيتم التنبيه عند وصول المخزون إلى هذا الحد
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* عرض حالة المخزون */}
+                  {formData.stockManagementEnabled && (
+                    <div className="mt-4 p-4 rounded-xl border-2 bg-white/5">
+                      {formData.stock <= 0 ? (
+                        <div className="flex items-center gap-2 text-red-400">
+                          <X className="w-5 h-5" />
+                          <span className="font-semibold">نفد من المخزون</span>
+                        </div>
+                      ) : formData.stock <= formData.lowStockThreshold ? (
+                        <div className="flex items-center gap-2 text-yellow-400">
+                          <Zap className="w-5 h-5" />
+                          <span className="font-semibold">مخزون منخفض ({formData.stock} متبقي)</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-green-400">
+                          <Tag className="w-5 h-5" />
+                          <span className="font-semibold">المخزون: {formData.stock} وحدة متاحة</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </motion.div>
+              </motion.div>
+            )}
+
+            {/* حقول المنتج الرقمي */}
+            {formData.productType === 'digital' && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="space-y-4 bg-white/5 border border-white/10 rounded-2xl p-6 mt-4"
+              >
+                <h4 className="text-lg font-bold text-white mb-4">معلومات المنتج الرقمي</h4>
+                <div>
+                  <label className="block text-sm font-semibold text-white/90 mb-2">
+                    رابط التحميل (اختياري)
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.downloadLink}
+                    onChange={(e) => setFormData({ ...formData, downloadLink: e.target.value })}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all duration-300"
+                    placeholder="https://example.com/download"
+                  />
+                  <p className="text-xs text-white/60 mt-1">
+                    رابط مباشر للوصول إلى المنتج الرقمي
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
+            {/* حقول منتج التنزيل */}
+            {formData.productType === 'download' && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="space-y-4 bg-white/5 border border-white/10 rounded-2xl p-6 mt-4"
+              >
+                <h4 className="text-lg font-bold text-white mb-4">معلومات التحميل</h4>
+                <div>
+                  <label className="block text-sm font-semibold text-white/90 mb-2">
+                    رابط التحميل *
+                  </label>
+                  <input
+                    type="url"
+                    value={formData.downloadLink}
+                    onChange={(e) => setFormData({ ...formData, downloadLink: e.target.value })}
+                    required
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all duration-300"
+                    placeholder="https://example.com/download/file.zip"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-white/90 mb-2">
+                    مدة صلاحية التحميل (بالأيام)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formData.downloadExpiryDays}
+                    onChange={(e) => setFormData({ ...formData, downloadExpiryDays: parseInt(e.target.value) || 0 })}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all duration-300"
+                    placeholder="0 = غير محدود"
+                  />
+                  <p className="text-xs text-white/60 mt-1">
+                    عدد الأيام المتاحة للعميل لتحميل الملف (اتركه 0 للسماح بالتحميل غير المحدود)
+                  </p>
+                </div>
+              </motion.div>
+            )}
+
+            {/* حقول الخدمة */}
+            {formData.productType === 'service' && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="space-y-4 bg-white/5 border border-white/10 rounded-2xl p-6 mt-4"
+              >
+                <h4 className="text-lg font-bold text-white mb-4">معلومات الخدمة</h4>
+                <div>
+                  <label className="block text-sm font-semibold text-white/90 mb-2">
+                    مدة الخدمة
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.serviceDuration}
+                    onChange={(e) => setFormData({ ...formData, serviceDuration: e.target.value })}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all duration-300"
+                    placeholder="مثال: ساعتان، يوم واحد، أسبوع"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-white/90 mb-2">
+                    تفاصيل الخدمة
+                  </label>
+                  <textarea
+                    value={formData.serviceDetails}
+                    onChange={(e) => setFormData({ ...formData, serviceDetails: e.target.value })}
+                    rows={4}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all duration-300 resize-none"
+                    placeholder="أدخل تفاصيل الخدمة المقدمة..."
+                  />
+                </div>
+              </motion.div>
+            )}
           </div>
 
           {/* نظام خيارات الاشتراك */}

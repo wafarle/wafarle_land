@@ -2,14 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, User, Mail, Phone, Package, Check, AlertCircle, Clock, Star, Tag, ShoppingBag, CreditCard, Shield, Zap } from 'lucide-react';
-import { addOrder, updateCustomerStats } from '@/lib/database';
+import { X, User, Mail, Phone, Package, Check, AlertCircle, Clock, Star, Tag, ShoppingBag, CreditCard, Shield, Zap, MapPin, Download, CheckCircle2 } from 'lucide-react';
+import { addOrder, updateCustomerStats, validateDiscountCode, incrementDiscountCodeUsage, checkProductStock, updateOrder } from '@/lib/database';
 import { Product, ProductOption } from '@/lib/firebase';
 import { onCustomerAuthStateChange, CustomerUser } from '@/lib/customerAuth';
 import Modal from '@/components/admin/Modal';
 import Button from '@/components/admin/Button';
 import LoadingSpinner from '@/components/admin/LoadingSpinner';
 import { useFormatPrice } from '@/contexts/CurrencyContext';
+import PaymentModal from './PaymentModal';
+import { PaymentIntent, PaymentGateway } from '@/lib/payment';
+import { useSettings } from '@/contexts/SettingsContext';
 
 interface OrderFormProps {
   product: Product;
@@ -22,13 +25,25 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
     customerName: '',
     customerEmail: '',
     customerPhone: '',
+    shippingAddress: '', // العنوان للشحن
+    discountCode: '', // كود الخصم
   });
+  const [discountInfo, setDiscountInfo] = useState<{
+    validated: boolean;
+    discountAmount?: number;
+    error?: string;
+  }>({ validated: false });
+  const [validatingCode, setValidatingCode] = useState(false);
   const [selectedOption, setSelectedOption] = useState<ProductOption | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [customerUser, setCustomerUser] = useState<CustomerUser | null>(null);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+  const [orderData, setOrderData] = useState<any>(null);
   const { formatPrice, currency } = useFormatPrice();
+  const { settings } = useSettings();
 
   // Listen to customer auth state
   useEffect(() => {
@@ -41,6 +56,8 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
           customerName: user.displayName || '',
           customerEmail: user.email || '',
           customerPhone: user.phone || '',
+          shippingAddress: '',
+          discountCode: '',
         });
       }
     });
@@ -61,6 +78,29 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
     }
   }, [product, isOpen]);
 
+  // Re-validate discount code when selected option changes
+  useEffect(() => {
+    if (formData.discountCode.trim() && discountInfo.validated && selectedOption) {
+      // Re-validate with new price
+      const basePrice = selectedOption.price;
+      validateDiscountCode(
+        formData.discountCode.trim(),
+        formData.customerEmail.trim().toLowerCase(),
+        product.id,
+        basePrice
+      ).then(validation => {
+        if (validation.valid && validation.discountAmount !== undefined) {
+          setDiscountInfo({
+            validated: true,
+            discountAmount: validation.discountAmount
+          });
+        }
+      }).catch(() => {
+        // Ignore errors on re-validation
+      });
+    }
+  }, [selectedOption?.id, product.id]);
+
   // Reset form when modal opens/closes
   useEffect(() => {
     if (isOpen && customerUser) {
@@ -68,16 +108,21 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
         customerName: customerUser.displayName || '',
         customerEmail: customerUser.email || '',
         customerPhone: customerUser.phone || '',
+        shippingAddress: '',
+        discountCode: '',
       });
     } else if (!isOpen) {
       setFormData({
         customerName: '',
         customerEmail: '',
         customerPhone: '',
+        shippingAddress: '',
+        discountCode: '',
       });
       setSelectedOption(null);
       setError('');
       setIsSubmitted(false);
+      setDiscountInfo({ validated: false });
     }
   }, [isOpen, customerUser]);
 
@@ -90,6 +135,50 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
     }));
     // Clear error when user starts typing
     if (error) setError('');
+    
+    // Reset discount info if code is cleared
+    if (name === 'discountCode' && !value.trim()) {
+      setDiscountInfo({ validated: false });
+    }
+  };
+
+  // Validate discount code
+  const handleValidateDiscountCode = async () => {
+    if (!formData.discountCode.trim()) {
+      setDiscountInfo({ validated: false, error: 'أدخل كود الخصم' });
+      return;
+    }
+
+    setValidatingCode(true);
+    try {
+      const finalPrice = selectedOption ? selectedOption.price : product.price;
+      const validation = await validateDiscountCode(
+        formData.discountCode.trim(),
+        formData.customerEmail.trim().toLowerCase(),
+        product.id,
+        finalPrice
+      );
+
+      if (validation.valid && validation.discountCode && validation.discountAmount !== undefined) {
+        setDiscountInfo({
+          validated: true,
+          discountAmount: validation.discountAmount
+        });
+      } else {
+        setDiscountInfo({
+          validated: false,
+          error: validation.error || 'كود الخصم غير صحيح'
+        });
+      }
+    } catch (error) {
+      console.error('Error validating discount code:', error);
+      setDiscountInfo({
+        validated: false,
+        error: 'حدث خطأ في التحقق من كود الخصم'
+      });
+    } finally {
+      setValidatingCode(false);
+    }
   };
 
   // Validate form data
@@ -127,6 +216,12 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
       return false;
     }
 
+    // Validate shipping address for physical products
+    if (product.productType === 'physical' && product.requiresShipping && !formData.shippingAddress.trim()) {
+      setError('يرجى إدخال عنوان الشحن');
+      return false;
+    }
+
     return true;
   };
 
@@ -140,43 +235,87 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
     setError('');
 
     try {
+      // Check stock availability for physical products
+      if (product.productType === 'physical' && product.stockManagementEnabled) {
+        const requestedQuantity = selectedOption?.duration || 1;
+        const stockCheck = await checkProductStock(product.id, requestedQuantity);
+        
+        if (!stockCheck.available) {
+          setError(stockCheck.message || 'المنتج غير متوفر في المخزون');
+          setIsSubmitting(false);
+          return;
+        }
+        
+        if (stockCheck.currentStock < requestedQuantity) {
+          setError(`المخزون المتاح: ${stockCheck.currentStock} وحدة فقط`);
+          setIsSubmitting(false);
+          return;
+        }
+      }
       // Create order object
-      const finalPrice = selectedOption ? selectedOption.price : product.price;
+      let finalPrice = selectedOption ? selectedOption.price : product.price;
+      const originalAmount = finalPrice;
+      let discountAmount = 0;
+      let discountCode = '';
+
+      // Apply discount if code is valid
+      if (formData.discountCode.trim() && discountInfo.validated && discountInfo.discountAmount) {
+        discountAmount = discountInfo.discountAmount;
+        discountCode = formData.discountCode.trim().toUpperCase();
+        finalPrice = Math.max(0, originalAmount - discountAmount);
+        
+        // Increment usage count
+        await incrementDiscountCodeUsage(discountCode, formData.customerEmail.trim().toLowerCase());
+      }
+
       const productDisplayName = selectedOption 
         ? `${product.name} - ${selectedOption.name} (${selectedOption.duration} شهر)`
         : product.name;
 
-      const orderData = {
+      const orderData: any = {
         customerName: formData.customerName.trim(),
         customerEmail: formData.customerEmail.trim().toLowerCase(),
         customerPhone: formData.customerPhone.trim(),
         productId: product.id,
         productName: productDisplayName,
-        productPrice: finalPrice,
-        quantity: 1,
+        productPrice: originalAmount,
+        quantity: selectedOption?.duration || 1,
         totalAmount: finalPrice,
+        originalAmount: discountAmount > 0 ? originalAmount : undefined,
+        discountCode: discountCode || undefined,
+        discountAmount: discountAmount > 0 ? discountAmount : undefined,
         status: 'pending' as const,
         paymentStatus: 'unpaid' as const,
         paymentMethod: 'card' as const, // Default payment method
         notes: selectedOption 
-          ? `خطة: ${selectedOption.name} | مدة: ${selectedOption.duration} شهر${selectedOption.description ? ` | وصف: ${selectedOption.description}` : ''}${selectedOption.originalPrice && selectedOption.price < selectedOption.originalPrice ? ` | خصم: ${Math.round(((selectedOption.originalPrice - selectedOption.price) / selectedOption.originalPrice) * 100)}%` : ''}`
-          : `طلب جديد من الموقع للمنتج: ${product.name}`
+          ? `خطة: ${selectedOption.name} | مدة: ${selectedOption.duration} شهر${selectedOption.description ? ` | وصف: ${selectedOption.description}` : ''}${selectedOption.originalPrice && selectedOption.price < selectedOption.originalPrice ? ` | خصم: ${Math.round(((selectedOption.originalPrice - selectedOption.price) / selectedOption.originalPrice) * 100)}%` : ''}${discountCode ? ` | كود خصم: ${discountCode}` : ''}`
+          : `طلب جديد من الموقع للمنتج: ${product.name}${discountCode ? ` | كود خصم: ${discountCode}` : ''}`,
       };
 
-      // Submit to database
-      await addOrder(orderData);
-      
-      // Update customer stats
-      await updateCustomerStats(formData.customerEmail.trim().toLowerCase(), finalPrice);
-      
-      setIsSubmitted(true);
-      
-      // Reset form after delay
-      setTimeout(() => {
-        setIsSubmitted(false);
-        setFormData({ customerName: '', customerEmail: '', customerPhone: '' });
-        onClose();
-      }, 3000);
+      // Add shipping address only for physical products
+      if (product.productType === 'physical' && formData.shippingAddress.trim()) {
+        orderData.shippingAddress = formData.shippingAddress.trim();
+      }
+
+      // Add download link only for download/digital products
+      if ((product.productType === 'download' || product.productType === 'digital') && product.downloadLink) {
+        orderData.downloadLink = product.downloadLink;
+      }
+
+      // Add product type if exists
+      if (product.productType) {
+        orderData.productType = product.productType;
+      }
+
+      // Submit to database first
+      const newOrderId = await addOrder(orderData);
+      setCreatedOrderId(newOrderId);
+      setOrderData(orderData);
+
+      // Always show payment modal
+      // It will show manual payment option if no gateways are enabled
+      console.log('💳 Showing payment modal for order:', newOrderId);
+      setShowPaymentModal(true);
 
     } catch (error) {
       console.error('Error submitting order:', error);
@@ -189,14 +328,69 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
   // Close modal and reset form
   const handleClose = () => {
     if (!isSubmitting) {
-      setFormData({ customerName: '', customerEmail: '', customerPhone: '' });
+      setFormData({ customerName: '', customerEmail: '', customerPhone: '', shippingAddress: '', discountCode: '' });
+      setDiscountInfo({ validated: false });
       setError('');
       setIsSubmitted(false);
       onClose();
     }
   };
 
+  // Handle download
+  const handleDownload = () => {
+    if (product.downloadLink) {
+      window.open(product.downloadLink, '_blank');
+    }
+  };
+
+  // Handle payment success
+  const handlePaymentSuccess = async (paymentIntent: PaymentIntent) => {
+    if (!createdOrderId) return;
+
+    try {
+      // Update order with payment information
+      await updateOrder(createdOrderId, {
+        paymentStatus: paymentIntent.status === 'succeeded' ? 'paid' : 'unpaid',
+        paymentGateway: paymentIntent.gateway,
+        paymentGatewayTransactionId: paymentIntent.transactionId,
+        paymentGatewayOrderId: paymentIntent.gatewayOrderId,
+        status: paymentIntent.status === 'succeeded' ? 'confirmed' : 'pending',
+      });
+
+      // Update customer stats only if payment succeeded
+      if (paymentIntent.status === 'succeeded' && orderData) {
+        await updateCustomerStats(
+          formData.customerEmail.trim().toLowerCase(),
+          orderData.totalAmount || 0
+        );
+      }
+
+      setIsSubmitted(true);
+      setShowPaymentModal(false);
+
+      // Reset form after delay
+      setTimeout(() => {
+        setIsSubmitted(false);
+        setCreatedOrderId(null);
+        setOrderData(null);
+        setFormData({ customerName: '', customerEmail: '', customerPhone: '', shippingAddress: '', discountCode: '' });
+        setDiscountInfo({ validated: false });
+        onClose();
+      }, 5000);
+    } catch (error) {
+      console.error('Error updating order after payment:', error);
+      setError('حدث خطأ في تحديث حالة الطلب بعد الدفع');
+    }
+  };
+
+  // Handle payment error
+  const handlePaymentError = (error: string) => {
+    setError(error || 'حدث خطأ في معالجة الدفع');
+    setShowPaymentModal(false);
+  };
+
   return (
+    <>
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
@@ -346,8 +540,26 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
                               </div>
                             </div>
                             <div className="text-right">
-                              <div className="text-base font-bold text-green-800">{formatPrice(selectedOption.price)}</div>
-                              <div className="text-xs text-green-600">الإجمالي</div>
+                              {(() => {
+                                const basePrice = selectedOption.price;
+                                const discount = discountInfo.validated && discountInfo.discountAmount ? discountInfo.discountAmount : 0;
+                                const finalPrice = Math.max(0, basePrice - discount);
+                                return (
+                                  <>
+                                    {discount > 0 && (
+                                      <div className="text-xs text-gray-500 line-through mb-1">
+                                        {formatPrice(basePrice)}
+                                      </div>
+                                    )}
+                                    <div className="text-base font-bold text-green-800">
+                                      {formatPrice(finalPrice)}
+                                    </div>
+                                    <div className="text-xs text-green-600">
+                                      الإجمالي {discount > 0 && `(وفرت ${formatPrice(discount)})`}
+                                    </div>
+                                  </>
+                                );
+                              })()}
                             </div>
                           </div>
                         </motion.div>
@@ -366,8 +578,26 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-lg font-bold text-primary-gold">{formatPrice(product.price)}</div>
-                          <div className="text-xs text-gray-600">الإجمالي</div>
+                          {(() => {
+                            const basePrice = product.price;
+                            const discount = discountInfo.validated && discountInfo.discountAmount ? discountInfo.discountAmount : 0;
+                            const finalPrice = Math.max(0, basePrice - discount);
+                            return (
+                              <>
+                                {discount > 0 && (
+                                  <div className="text-xs text-gray-500 line-through mb-1">
+                                    {formatPrice(basePrice)}
+                                  </div>
+                                )}
+                                <div className="text-lg font-bold text-primary-gold">
+                                  {formatPrice(finalPrice)}
+                                </div>
+                                <div className="text-xs text-gray-600">
+                                  الإجمالي {discount > 0 && `(وفرت ${formatPrice(discount)})`}
+                                </div>
+                              </>
+                            );
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -467,6 +697,117 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
                         </div>
                       </motion.div>
 
+                      {/* Discount Code Field */}
+                      <motion.div
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.4 }}
+                        className="bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg p-4 border border-yellow-200"
+                      >
+                        <label htmlFor="discountCode" className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                          <Tag className="w-4 h-4 text-yellow-600" />
+                          كود الخصم
+                        </label>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1 group">
+                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                              <Tag className="h-4 w-4 text-gray-400 group-focus-within:text-yellow-600 transition-colors" />
+                            </div>
+                            <input
+                              type="text"
+                              id="discountCode"
+                              name="discountCode"
+                              value={formData.discountCode}
+                              onChange={handleInputChange}
+                              placeholder="أدخل كود الخصم"
+                              className="block w-full pr-10 pl-3 py-3 border border-yellow-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent transition-all shadow-sm hover:shadow-md font-mono uppercase"
+                              disabled={isSubmitting}
+                              onBlur={handleValidateDiscountCode}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleValidateDiscountCode}
+                            disabled={validatingCode || !formData.discountCode.trim() || isSubmitting}
+                            className="px-4 py-3 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-medium rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                          >
+                            {validatingCode ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                <span>جاري التحقق...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-4 h-4" />
+                                <span>تطبيق</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        
+                        {/* Discount Info */}
+                        {discountInfo.validated && discountInfo.discountAmount && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="mt-3 p-3 bg-green-100 border border-green-300 rounded-lg"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-green-700">
+                                <CheckCircle2 className="w-5 h-5" />
+                                <span className="text-sm font-medium">تم تطبيق الخصم بنجاح!</span>
+                              </div>
+                              <span className="text-lg font-bold text-green-700">
+                                -{formatPrice(discountInfo.discountAmount)}
+                              </span>
+                            </div>
+                          </motion.div>
+                        )}
+                        
+                        {discountInfo.error && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="mt-3 p-3 bg-red-100 border border-red-300 rounded-lg"
+                          >
+                            <div className="flex items-center gap-2 text-red-700">
+                              <AlertCircle className="w-5 h-5" />
+                              <span className="text-sm">{discountInfo.error}</span>
+                            </div>
+                          </motion.div>
+                        )}
+                      </motion.div>
+
+                      {/* Shipping Address Field - Only for Physical Products */}
+                      {product.productType === 'physical' && product.requiresShipping && (
+                        <motion.div
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.5 }}
+                        >
+                          <label htmlFor="shippingAddress" className="block text-sm font-medium text-gray-700 mb-2">
+                            عنوان الشحن *
+                          </label>
+                          <div className="relative group">
+                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                              <MapPin className="h-4 w-4 text-gray-400 group-focus-within:text-primary-gold transition-colors" />
+                            </div>
+                            <textarea
+                              id="shippingAddress"
+                              name="shippingAddress"
+                              value={formData.shippingAddress}
+                              onChange={(e) => setFormData(prev => ({ ...prev, shippingAddress: e.target.value }))}
+                              placeholder="أدخل عنوان الشحن الكامل (المنطقة، المدينة، الشارع، رقم المبنى)"
+                              rows={3}
+                              className="block w-full pr-10 pl-3 py-3 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-gold focus:border-transparent transition-all shadow-sm hover:shadow-md resize-none"
+                              disabled={isSubmitting}
+                              required={product.requiresShipping}
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">يرجى إدخال عنوان تفصيلي لضمان التوصيل</p>
+                        </motion.div>
+                      )}
+
                       {/* Error Message */}
                       {error && (
                         <motion.div
@@ -485,11 +826,47 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
                         </motion.div>
                       )}
 
+                      {/* Price Summary */}
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.6 }}
+                        className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-700">المبلغ الإجمالي:</span>
+                          <div className="text-right">
+                            {(() => {
+                              const basePrice = selectedOption ? selectedOption.price : product.price;
+                              const discount = discountInfo.validated && discountInfo.discountAmount ? discountInfo.discountAmount : 0;
+                              const finalPrice = Math.max(0, basePrice - discount);
+                              return (
+                                <>
+                                  {discount > 0 && (
+                                    <>
+                                      <div className="text-sm text-gray-500 line-through">
+                                        {formatPrice(basePrice)}
+                                      </div>
+                                      <div className="text-xs text-green-600 mt-1">
+                                        خصم: -{formatPrice(discount)}
+                                      </div>
+                                    </>
+                                  )}
+                                  <div className={`text-xl font-bold mt-1 ${discount > 0 ? 'text-green-700' : 'text-primary-gold'}`}>
+                                    {formatPrice(finalPrice)}
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </motion.div>
+
                       {/* Submit Button */}
                       <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4 }}
+                        transition={{ delay: 0.7 }}
                         className="pt-1"
                       >
                         <Button
@@ -617,6 +994,44 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
                     </div>
                   </motion.div>
 
+                  {/* Download Button - For Download/Digital Products */}
+                  {(product.productType === 'download' || product.productType === 'digital') && product.downloadLink && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.55 }}
+                      className="mt-4"
+                    >
+                      <button
+                        onClick={handleDownload}
+                        className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center gap-3 group"
+                      >
+                        <Download className="w-5 h-5 group-hover:animate-bounce" />
+                        <span className="text-lg">تحميل المنتج الآن</span>
+                      </button>
+                      <p className="text-xs text-center text-gray-600 mt-2">
+                        اضغط هنا لتحميل المنتج مباشرة بعد الطلب
+                      </p>
+                    </motion.div>
+                  )}
+
+                  {/* Shipping Info - For Physical Products */}
+                  {product.productType === 'physical' && formData.shippingAddress && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.55 }}
+                      className="mt-4 bg-blue-50 rounded-lg p-4 border border-blue-200"
+                    >
+                      <h5 className="text-sm font-semibold text-blue-800 mb-2 flex items-center gap-2">
+                        <MapPin className="w-4 h-4" />
+                        عنوان الشحن
+                      </h5>
+                      <p className="text-sm text-blue-700">{formData.shippingAddress}</p>
+                      <p className="text-xs text-blue-600 mt-2">سيتم التواصل معك لتأكيد العنوان وتنسيق عملية الشحن</p>
+                    </motion.div>
+                  )}
+
                   {/* Next Steps */}
                   <motion.div
                     initial={{ opacity: 0 }}
@@ -644,6 +1059,25 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
               )}
       </div>
     </Modal>
+
+    {/* Payment Modal */}
+    {showPaymentModal && createdOrderId && orderData && (
+      <PaymentModal
+        isOpen={showPaymentModal}
+        onClose={() => {
+          setShowPaymentModal(false);
+          // Don't close order form if payment modal is closed
+        }}
+        orderId={createdOrderId}
+        amount={orderData.totalAmount || 0}
+        currency={typeof currency === 'string' ? currency : currency?.code || 'SAR'}
+        customerEmail={formData.customerEmail.trim()}
+        customerName={formData.customerName.trim()}
+        onPaymentSuccess={handlePaymentSuccess}
+        onPaymentError={handlePaymentError}
+      />
+    )}
+  </>
   );
 };
 

@@ -14,11 +14,12 @@ import {
   Image as ImageIcon,
   Settings,
   Trash2,
-  Upload
+  Upload,
+  Search
 } from 'lucide-react';
 import { 
   getBlogCategories, 
-  getBlogPost,
+  getBlogPostById,
   updateBlogPost,
   deleteBlogPost,
   generateSlug, 
@@ -51,6 +52,11 @@ const EditBlogPost = ({ params }: EditBlogPostProps) => {
     seoTitle: '',
     seoDescription: '',
     seoKeywords: [] as string[],
+    seoImage: '',
+    seoAlt: '',
+    canonicalUrl: '',
+    robotsIndex: true,
+    robotsFollow: true,
     images: [] as string[] // Array of image URLs/base64
   });
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -68,9 +74,9 @@ const EditBlogPost = ({ params }: EditBlogPostProps) => {
       console.log('🔄 [EDIT PAGE] ID length:', resolvedParams.id.length);
       console.log('🔄 [EDIT PAGE] Current timestamp:', Date.now());
       
-      console.log('📞 [EDIT PAGE] About to call getBlogPost and getBlogCategories...');
+      console.log('📞 [EDIT PAGE] About to call getBlogPostById and getBlogCategories...');
       const [postData, categoriesData] = await Promise.all([
-        getBlogPost(resolvedParams.id),
+        getBlogPostById(resolvedParams.id),
         getBlogCategories()
       ]);
       console.log('📞 [EDIT PAGE] API calls completed');
@@ -102,6 +108,11 @@ const EditBlogPost = ({ params }: EditBlogPostProps) => {
           seoTitle: postData.seoTitle || postData.seo?.title || '',
           seoDescription: postData.seoDescription || postData.seo?.description || '',
           seoKeywords: postData.seoKeywords || postData.seo?.keywords || [],
+          seoImage: postData.seoImage || postData.seo?.image || '',
+          seoAlt: postData.seoAlt || postData.seo?.alt || '',
+          canonicalUrl: postData.canonicalUrl || postData.seo?.canonicalUrl || '',
+          robotsIndex: postData.robotsIndex ?? postData.seo?.robotsIndex ?? true,
+          robotsFollow: postData.robotsFollow ?? postData.seo?.robotsFollow ?? true,
           images: postData.images || [] // Load existing images
         });
         
@@ -157,6 +168,33 @@ const EditBlogPost = ({ params }: EditBlogPostProps) => {
         seoTitle: formData.seoTitle || formData.title,
         seoDescription: formData.seoDescription || formData.excerpt,
         seoKeywords: formData.seoKeywords,
+        seoImage: formData.seoImage || formData.featuredImage,
+        seoAlt: formData.seoAlt,
+        canonicalUrl: formData.canonicalUrl,
+        robotsIndex: formData.robotsIndex,
+        robotsFollow: formData.robotsFollow,
+        seo: {
+          title: formData.seoTitle || formData.title,
+          description: formData.seoDescription || formData.excerpt,
+          keywords: formData.seoKeywords,
+          image: formData.seoImage || formData.featuredImage,
+          alt: formData.seoAlt,
+          canonicalUrl: formData.canonicalUrl,
+          robotsIndex: formData.robotsIndex,
+          robotsFollow: formData.robotsFollow,
+          structuredData: {
+            article: {
+              headline: formData.seoTitle || formData.title,
+              description: formData.seoDescription || formData.excerpt,
+              image: formData.seoImage || formData.featuredImage,
+              author: post?.authorName || 'المحرر',
+              publisher: 'وافرلي',
+              datePublished: post?.publishedAt?.toISOString() || new Date().toISOString(),
+              dateModified: new Date().toISOString(),
+              mainEntityOfPage: formData.canonicalUrl || `https://wafarle.com/blog/${slug}`
+            }
+          }
+        },
         updatedAt: new Date(),
         ...(formData.status === 'published' && !post?.publishedAt && { publishedAt: new Date() }),
         ...(formData.status === 'published' && post?.publishedAt && { publishedAt: post.publishedAt }),
@@ -170,8 +208,13 @@ const EditBlogPost = ({ params }: EditBlogPostProps) => {
       // Navigate back to blog tab
       router.push('/admin/dashboard?tab=blog');
     } catch (error) {
-      console.error('Error updating post:', error);
-      alert('حدث خطأ في تحديث المقال');
+      console.error('❌ [SAVE] Error updating post:', error);
+      if (error instanceof Error && error.message.includes('does not exist')) {
+        alert('المقال غير موجود في قاعدة البيانات. يرجى العودة إلى قائمة المقالات.');
+        router.push('/admin/dashboard?tab=blog');
+      } else {
+        alert('حدث خطأ في تحديث المقال: ' + (error instanceof Error ? error.message : 'خطأ غير معروف'));
+      }
     } finally {
       setLoading(false);
     }
@@ -565,6 +608,127 @@ const EditBlogPost = ({ params }: EditBlogPostProps) => {
                   formData.featured ? 'translate-x-6' : 'translate-x-1'
                 }`} />
               </button>
+            </div>
+
+            {/* SEO Settings */}
+            <div className="bg-white/5 rounded-2xl p-8 border border-white/10">
+              <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+                <Search className="w-5 h-5 text-green-400" />
+                إعدادات SEO
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-white/70 text-sm font-medium mb-2">عنوان SEO</label>
+                  <input
+                    type="text"
+                    value={formData.seoTitle}
+                    onChange={(e) => setFormData(prev => ({ ...prev, seoTitle: e.target.value }))}
+                    placeholder={formData.title || "عنوان المقال"}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <p className="text-white/50 text-xs mt-1">الطول المثالي: 50-60 حرف</p>
+                </div>
+                
+                <div>
+                  <label className="block text-white/70 text-sm font-medium mb-2">وصف SEO</label>
+                  <textarea
+                    value={formData.seoDescription}
+                    onChange={(e) => setFormData(prev => ({ ...prev, seoDescription: e.target.value }))}
+                    placeholder={formData.excerpt || "وصف المقال"}
+                    rows={3}
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <p className="text-white/50 text-xs mt-1">الطول المثالي: 150-160 حرف</p>
+                </div>
+                
+                <div>
+                  <label className="block text-white/70 text-sm font-medium mb-2">الكلمات المفتاحية</label>
+                  <input
+                    type="text"
+                    value={formData.seoKeywords.join(', ')}
+                    onChange={(e) => setFormData(prev => ({ 
+                      ...prev, 
+                      seoKeywords: e.target.value.split(',').map(k => k.trim()).filter(k => k)
+                    }))}
+                    placeholder="كلمة مفتاحية 1، كلمة مفتاحية 2، كلمة مفتاحية 3"
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <p className="text-white/50 text-xs mt-1">افصل الكلمات بفواصل</p>
+                </div>
+                
+                <div>
+                  <label className="block text-white/70 text-sm font-medium mb-2">صورة SEO</label>
+                  <input
+                    type="url"
+                    value={formData.seoImage}
+                    onChange={(e) => setFormData(prev => ({ ...prev, seoImage: e.target.value }))}
+                    placeholder="https://example.com/seo-image.jpg"
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                  <p className="text-white/50 text-xs mt-1">الأبعاد المثالية: 1200x630 بكسل</p>
+                </div>
+                
+                <div>
+                  <label className="block text-white/70 text-sm font-medium mb-2">نص بديل للصورة</label>
+                  <input
+                    type="text"
+                    value={formData.seoAlt}
+                    onChange={(e) => setFormData(prev => ({ ...prev, seoAlt: e.target.value }))}
+                    placeholder="وصف الصورة للمحركات البحث"
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-white/70 text-sm font-medium mb-2">الرابط الأساسي</label>
+                  <input
+                    type="url"
+                    value={formData.canonicalUrl}
+                    onChange={(e) => setFormData(prev => ({ ...prev, canonicalUrl: e.target.value }))}
+                    placeholder="https://wafarle.com/blog/article-slug"
+                    className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+              </div>
+              
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-white font-medium">السماح بالفهرسة</h4>
+                    <p className="text-white/60 text-sm">السماح لمحركات البحث بفهرسة المقال</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, robotsIndex: !prev.robotsIndex }))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      formData.robotsIndex ? 'bg-green-500' : 'bg-gray-600'
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      formData.robotsIndex ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-white font-medium">السماح بالمتابعة</h4>
+                    <p className="text-white/60 text-sm">السماح لمحركات البحث بمتابعة الروابط</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, robotsFollow: !prev.robotsFollow }))}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      formData.robotsFollow ? 'bg-green-500' : 'bg-gray-600'
+                    }`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      formData.robotsFollow ? 'translate-x-6' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </form>
