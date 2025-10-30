@@ -2,11 +2,15 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Play, Star, Users, Award, Zap } from 'lucide-react';
+import { ArrowRight, Play, Star, Users, Award, Zap, Tag, X } from 'lucide-react';
 import Link from 'next/link';
+import { getDiscountCodes } from '@/lib/database';
+import { DiscountCode } from '@/lib/firebase';
 
 const Hero = () => {
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
+  const [autoApplyCoupons, setAutoApplyCoupons] = useState<DiscountCode[]>([]);
+  const [showCouponsBanner, setShowCouponsBanner] = useState(true);
 
   const testimonials = [
     { name: 'أحمد محمد', text: 'وفرت أكثر من 50% على اشتراكاتي' },
@@ -20,6 +24,25 @@ const Hero = () => {
     }, 3000);
     return () => clearInterval(interval);
   }, [testimonials.length]);
+
+  // Load auto-apply discount codes
+  useEffect(() => {
+    const loadAutoApplyCoupons = async () => {
+      try {
+        const codes = await getDiscountCodes();
+        const autoCodes = codes.filter(code => 
+          code.autoApply && 
+          code.active &&
+          (!code.validFrom || new Date(code.validFrom) <= new Date()) &&
+          (!code.validUntil || new Date(code.validUntil) >= new Date())
+        );
+        setAutoApplyCoupons(autoCodes.slice(0, 3)); // Show max 3 coupons
+      } catch (error) {
+        console.error('Error loading auto-apply coupons:', error);
+      }
+    };
+    loadAutoApplyCoupons();
+  }, []);
 
   const stats = [
     { icon: Users, value: '10,000+', label: 'عميل راضي' },
@@ -36,6 +59,64 @@ const Hero = () => {
       <div className="absolute -bottom-8 left-20 w-72 h-72 bg-emerald-200 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-float" style={{ animationDelay: '4s' }}></div>
 
       <div className="container relative z-10 px-4 md:px-6" dir="rtl">
+        {/* Auto-Apply Coupons Banner */}
+        {showCouponsBanner && autoApplyCoupons.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-8 bg-gradient-to-r from-yellow-50 via-orange-50 to-pink-50 rounded-2xl p-4 md:p-6 border-2 border-yellow-200 shadow-lg relative overflow-hidden"
+          >
+            <button
+              onClick={() => setShowCouponsBanner(false)}
+              className="absolute top-2 left-2 w-8 h-8 flex items-center justify-center bg-white/80 hover:bg-white rounded-full transition-colors z-10"
+            >
+              <X className="w-4 h-4 text-gray-600" />
+            </button>
+            
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-xl flex items-center justify-center">
+                <Tag className="w-5 h-5 text-white" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">عروض خاصة! كوبونات تلقائية</h3>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {autoApplyCoupons.map((coupon) => (
+                <motion.div
+                  key={coupon.id}
+                  initial={{ scale: 0.9 }}
+                  animate={{ scale: 1 }}
+                  transition={{ duration: 0.3 }}
+                  className="bg-white rounded-xl p-4 border-2 border-yellow-300 shadow-md hover:shadow-lg transition-all"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">🎁</span>
+                      <span className="font-mono font-bold text-yellow-600">{coupon.code}</span>
+                    </div>
+                    {coupon.discountType === 'percentage' ? (
+                      <span className="text-lg font-bold text-green-600">{coupon.discountValue}%</span>
+                    ) : (
+                      <span className="text-lg font-bold text-green-600">${coupon.discountValue}</span>
+                    )}
+                  </div>
+                  {coupon.description && (
+                    <p className="text-xs text-gray-600 text-right">{coupon.description}</p>
+                  )}
+                  {coupon.freeShipping && (
+                    <p className="text-xs text-blue-600 font-medium mt-1">🚚 شحن مجاني</p>
+                  )}
+                </motion.div>
+              ))}
+            </div>
+
+            <p className="text-sm text-gray-600 mt-4 text-center">
+              💡 سيتم تطبيق هذه الكوبونات تلقائياً عند إتمام الطلب!
+            </p>
+          </motion.div>
+        )}
+
         <div className="grid lg:grid-cols-2 gap-8 md:gap-16 items-center">
           {/* Left Content */}
           <motion.div

@@ -88,13 +88,7 @@ const Header = () => {
 
           {/* Contact Info & Auth Buttons */}
           <div className="hidden lg:flex items-center gap-6">
-            {/* Contact Info */}
-            <div className="flex items-center gap-4 text-sm text-gray-600">
-              <div className="flex items-center gap-2">
-                <Phone className="w-4 h-4 text-blue-600" />
-                <span>{phone}</span>
-              </div>
-            </div>
+         
 
             {/* Auth Section */}
             {customerUser ? (

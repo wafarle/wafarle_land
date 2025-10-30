@@ -25,11 +25,19 @@ import {
   CreditCard,
   Eye,
   Download,
-  AlertCircle
+  AlertCircle,
+  Truck,
+  MapPin,
+  FileText,
+  Receipt,
+  Crown,
+  Coins,
+  RotateCcw,
+  Gift
 } from 'lucide-react';
 import { onCustomerAuthStateChange, signOutCustomer, CustomerUser } from '@/lib/customerAuth';
-import { getOrders, getProducts, getCustomerSubscriptions, subscribeToCustomerSubscriptions } from '@/lib/database';
-import { Order, Product, Subscription } from '@/lib/firebase';
+import { getOrders, getProducts, getCustomerSubscriptions, subscribeToCustomerSubscriptions, getCustomerReviews, updateSubscriptionReview, deleteSubscriptionReview, subscribeToOrders, downloadInvoicePDF, getCustomers, updateOrder, getDiscountCodes } from '@/lib/database';
+import { Order, Product, Subscription, SubscriptionReview } from '@/lib/firebase';
 import { useFormatPrice } from '@/contexts/CurrencyContext';
 import { 
   getSubscriptionStatusColor, 
@@ -38,6 +46,13 @@ import {
   calculateRemainingDays 
 } from '@/lib/database';
 import LiveChat from '@/components/customer/LiveChat';
+import ReviewModal, { ReviewList } from '@/components/customer/ReviewModal';
+import EditReviewModal from '@/components/customer/EditReviewModal';
+import SubscriptionManagementModal from '@/components/customer/SubscriptionManagementModal';
+import ShippingTrackingModal from '@/components/customer/ShippingTrackingModal';
+import ReviewInviteModal from '@/components/customer/ReviewInviteModal';
+import ReturnRequestModal from '@/components/customer/ReturnRequestModal';
+import { useSettings } from '@/contexts/SettingsContext';
 
 export default function CustomerDashboard() {
   const router = useRouter();
@@ -47,8 +62,23 @@ export default function CustomerDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [reviews, setReviews] = useState<SubscriptionReview[]>([]);
   const [showIndexWarning, setShowIndexWarning] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [selectedSubscription, setSelectedSubscription] = useState<Subscription | null>(null);
+  const [editingReview, setEditingReview] = useState<SubscriptionReview | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showSubscriptionManagement, setShowSubscriptionManagement] = useState(false);
+  const [selectedSubscriptionForManagement, setSelectedSubscriptionForManagement] = useState<Subscription | null>(null);
+  const [showShippingTrackingModal, setShowShippingTrackingModal] = useState(false);
+  const [selectedOrderForTracking, setSelectedOrderForTracking] = useState<Order | null>(null);
+  const [showReviewInvite, setShowReviewInvite] = useState(false);
+  const [showReviewInviteWithCode, setShowReviewInviteWithCode] = useState(false);
+  const [showReturnRequestModal, setShowReturnRequestModal] = useState(false);
+  const [selectedOrderForReturn, setSelectedOrderForReturn] = useState<Order | null>(null);
+  const [customerData, setCustomerData] = useState<any>(null);
   const { formatPrice } = useFormatPrice();
+  const { settings } = useSettings();
 
   // Check authentication
   useEffect(() => {
@@ -68,8 +98,45 @@ export default function CustomerDashboard() {
   useEffect(() => {
     if (customerUser) {
       loadCustomerData();
+      
+      // Subscribe to real-time order updates
+      const unsubscribe = subscribeToOrders((allOrders) => {
+        if (customerUser?.email) {
+          const customerOrders = allOrders.filter(order => 
+            order.customerEmail.toLowerCase() === customerUser.email.toLowerCase()
+          );
+          setOrders(customerOrders);
+        }
+      });
+
+      return () => {
+        if (unsubscribe) unsubscribe();
+      };
     }
   }, [customerUser]);
+
+  // Check for review invite when settings are loaded and reviews are loaded
+  useEffect(() => {
+    if (customerUser && reviews.length === 0 && !settings.loading) {
+      const reviewInviteEnabled = settings?.website?.reviewInvite?.enabled ?? true;
+      
+      if (reviewInviteEnabled) {
+        // Check if user has dismissed this before (using localStorage)
+        const hasDismissed = typeof window !== 'undefined' ? localStorage.getItem('reviewInviteDismissed') : null;
+        const lastShown = typeof window !== 'undefined' ? localStorage.getItem('reviewInviteLastShown') : null;
+        const now = Date.now();
+        const dayInMs = 24 * 60 * 60 * 1000;
+        
+        const shouldShow = !hasDismissed || (lastShown && (now - parseInt(lastShown)) > 7 * dayInMs);
+        
+        if (shouldShow && !showReviewInvite && !showReviewInviteWithCode) {
+          setTimeout(() => {
+            setShowReviewInvite(true);
+          }, 2000);
+        }
+      }
+    }
+  }, [customerUser, reviews.length, settings.loading, settings?.website?.reviewInvite, showReviewInvite, showReviewInviteWithCode]);
 
   const loadCustomerData = async () => {
     if (!customerUser?.email) return;
@@ -88,7 +155,34 @@ export default function CustomerDashboard() {
 
       // Load customer's subscriptions
       const customerSubscriptions = await getCustomerSubscriptions(customerUser.email);
-      setSubscriptions(customerSubscriptions);
+      // تصفية الاشتراكات: إزالة المنتجات الملموسة أو التي تحتاج تنزيل
+      const filteredSubscriptions = customerSubscriptions.filter(subscription => {
+        // البحث عن المنتج المرتبط بهذا الاشتراك
+        const product = availableProducts.find(p => p.id === subscription.productId);
+        if (!product) return true; // إذا لم نجد المنتج، نعرضه (قديم)
+        
+        // استبعاد المنتجات الملموسة أو التي تحتاج تنزيل
+        const productType = product.productType;
+        return productType !== 'physical' && productType !== 'download';
+      });
+      setSubscriptions(filteredSubscriptions);
+
+      // Load customer's reviews
+      const customerReviews = await getCustomerReviews(customerUser.email);
+      setReviews(customerReviews);
+
+      // Load customer data for loyalty points
+      try {
+        const allCustomers = await getCustomers();
+        const customer = allCustomers.find(c => c.email.toLowerCase() === customerUser.email.toLowerCase());
+        if (customer) {
+          setCustomerData(customer);
+        }
+      } catch (error) {
+        console.error('Error loading customer data:', error);
+      }
+      
+      // Note: Review invite check is now handled in useEffect hook below
     } catch (error) {
       console.error('Error loading customer data:', error);
       // Check if it's a Firebase index error
@@ -113,6 +207,18 @@ export default function CustomerDashboard() {
     }
   };
 
+  // Handle subscription management
+  const handleSubscriptionManagement = (subscription: Subscription) => {
+    setSelectedSubscriptionForManagement(subscription);
+    setShowSubscriptionManagement(true);
+  };
+
+  // Close subscription management
+  const handleCloseSubscriptionManagement = () => {
+    setShowSubscriptionManagement(false);
+    setSelectedSubscriptionForManagement(null);
+  };
+
   // Format date
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('ar-SA', {
@@ -133,6 +239,18 @@ export default function CustomerDashboard() {
       cancelled: { label: 'ملغي', color: 'bg-red-100 text-red-800', icon: XCircle }
     };
     return configs[status as keyof typeof configs] || configs.pending;
+  };
+
+  // Get shipping status config
+  const getShippingStatusConfig = (status?: string) => {
+    const configs = {
+      pending_shipping: { label: 'بانتظار الشحن', color: 'bg-gray-100 text-gray-800', icon: Clock },
+      prepared: { label: 'تم التحضير', color: 'bg-blue-100 text-blue-800', icon: Package },
+      shipped: { label: 'تم الشحن', color: 'bg-purple-100 text-purple-800', icon: Truck },
+      in_transit: { label: 'في الطريق', color: 'bg-yellow-100 text-yellow-800', icon: RefreshCw },
+      delivered: { label: 'تم التسليم', color: 'bg-green-100 text-green-800', icon: CheckCircle }
+    };
+    return configs[status as keyof typeof configs] || configs.pending_shipping;
   };
 
   // Get payment status config
@@ -266,6 +384,37 @@ export default function CustomerDashboard() {
                   اشتراكاتي
                 </button>
 
+                <button
+                  onClick={() => setActiveTab('reviews')}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-right ${
+                    activeTab === 'reviews' 
+                      ? 'bg-blue-50 text-blue-600 border border-blue-200' 
+                      : 'hover:bg-gray-50 text-gray-700'
+                  }`}
+                >
+                  <Star className="w-5 h-5" />
+                  تقييماتي
+                </button>
+
+                {settings?.website?.loyaltyProgram?.enabled && (
+                  <button
+                    onClick={() => setActiveTab('loyalty')}
+                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-right ${
+                      activeTab === 'loyalty' 
+                        ? 'bg-blue-50 text-blue-600 border border-blue-200' 
+                        : 'hover:bg-gray-50 text-gray-700'
+                    }`}
+                  >
+                    <Crown className="w-5 h-5" />
+                    نقاط الولاء
+                    {customerData?.loyaltyPoints && customerData.loyaltyPoints > 0 && (
+                      <span className="bg-yellow-500 text-white text-xs rounded-full px-2 py-1 mr-auto">
+                        {customerData.loyaltyPoints}
+                      </span>
+                    )}
+                  </button>
+                )}
+
                 <Link
                   href="/customer/profile"
                   className="w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors text-right hover:bg-gray-50 text-gray-700"
@@ -329,15 +478,43 @@ export default function CustomerDashboard() {
                     <h3 className="font-medium text-gray-700">إجمالي الإنفاق</h3>
                   </div>
 
-                  <div className="bg-white rounded-lg p-6 border shadow-sm">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
-                        <Clock className="w-6 h-6 text-yellow-600" />
+                  {/* Loyalty Points Card */}
+                  {settings?.website?.loyaltyProgram?.enabled && (
+                    <div className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-lg p-6 border-2 border-yellow-200 shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-12 h-12 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-lg flex items-center justify-center">
+                          <Coins className="w-6 h-6 text-white" />
+                        </div>
+                        <span className="text-2xl font-bold text-gray-900">
+                          {customerData?.loyaltyPoints || 0}
+                        </span>
                       </div>
-                      <span className="text-2xl font-bold text-gray-900">{stats.pendingOrders}</span>
+                      <h3 className="font-medium text-gray-700 mb-1">نقاط الولاء</h3>
+                      {customerData?.loyaltyTier && (
+                        <div className="flex items-center gap-2">
+                          <Crown className="w-4 h-4 text-yellow-600" />
+                          <span className="text-xs text-gray-600 capitalize">{customerData.loyaltyTier}</span>
+                        </div>
+                      )}
+                      {settings.website.loyaltyProgram && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          {customerData?.loyaltyPoints || 0} / {settings.website.loyaltyProgram.redemptionRate} = ${((customerData?.loyaltyPoints || 0) / settings.website.loyaltyProgram.redemptionRate).toFixed(2)} خصم
+                        </p>
+                      )}
                     </div>
-                    <h3 className="font-medium text-gray-700">طلبات معلقة</h3>
-                  </div>
+                  )}
+
+                  {!settings?.website?.loyaltyProgram?.enabled && (
+                    <div className="bg-white rounded-lg p-6 border shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                          <Clock className="w-6 h-6 text-yellow-600" />
+                        </div>
+                        <span className="text-2xl font-bold text-gray-900">{stats.pendingOrders}</span>
+                      </div>
+                      <h3 className="font-medium text-gray-700">طلبات معلقة</h3>
+                    </div>
+                  )}
                 </div>
 
                 {/* Recent Orders */}
@@ -352,6 +529,16 @@ export default function CustomerDashboard() {
                           const statusConfig = getOrderStatusConfig(order.status);
                           const StatusIcon = statusConfig.icon;
                           
+                          // البحث عن المنتج المرتبط بالطلب
+                          const product = products.find(p => p.id === order.productId);
+                          const productType = product?.productType || order.productType;
+                          const downloadLink = product?.downloadLink || order.downloadLink;
+                          const showDownloadButton = (productType === 'download' || productType === 'digital') && downloadLink;
+                          const showShippingTracking = productType === 'physical' && product?.requiresShipping;
+                          const shippingStatus = order.shippingStatus || 'pending_shipping';
+                          const shippingStatusConfig = getShippingStatusConfig(shippingStatus);
+                          const ShippingIcon = shippingStatusConfig.icon;
+                          
                           return (
                             <div key={order.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                               <div className="flex items-center gap-4">
@@ -361,10 +548,40 @@ export default function CustomerDashboard() {
                                 <div>
                                   <h3 className="font-medium text-gray-900">{order.productName}</h3>
                                   <p className="text-sm text-gray-500">{formatDate(order.createdAt)}</p>
+                                  {/* عرض حالة الشحن للمنتجات الملموسة */}
+                                  {showShippingTracking && (
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${shippingStatusConfig.color}`}>
+                                        <ShippingIcon className="w-3 h-3 mr-1" />
+                                        {shippingStatusConfig.label}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                               
                               <div className="flex items-center gap-4">
+                                {showShippingTracking && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedOrderForTracking(order);
+                                      setShowShippingTrackingModal(true);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-xs font-medium rounded-md shadow-sm hover:shadow transition-all duration-200"
+                                  >
+                                    <Truck className="w-3.5 h-3.5" />
+                                    تتبع الشحن
+                                  </button>
+                                )}
+                                {showDownloadButton && (
+                                  <button
+                                    onClick={() => window.open(downloadLink, '_blank')}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white text-xs font-medium rounded-md shadow-sm hover:shadow transition-all duration-200"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                    تحميل
+                                  </button>
+                                )}
                                 <span className="font-medium text-gray-900">{formatPrice(order.totalAmount)}</span>
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig.color}`}>
                                   <StatusIcon className="w-3 h-3 mr-1" />
@@ -403,6 +620,16 @@ export default function CustomerDashboard() {
                         const paymentConfig = getPaymentStatusConfig(order.paymentStatus);
                         const StatusIcon = statusConfig.icon;
                         
+                        // البحث عن المنتج المرتبط بالطلب
+                        const product = products.find(p => p.id === order.productId);
+                        const productType = product?.productType || order.productType;
+                        const downloadLink = product?.downloadLink || order.downloadLink;
+                        const showDownloadButton = (productType === 'download' || productType === 'digital') && downloadLink;
+                        const showShippingTracking = productType === 'physical' && product?.requiresShipping;
+                        const shippingStatus = order.shippingStatus || 'pending_shipping';
+                        const shippingStatusConfig = getShippingStatusConfig(shippingStatus);
+                        const ShippingIcon = shippingStatusConfig.icon;
+                        
                         return (
                           <div key={order.id} className="border border-gray-200 rounded-lg p-6">
                             <div className="flex items-start justify-between mb-4">
@@ -410,6 +637,15 @@ export default function CustomerDashboard() {
                                 <h3 className="text-lg font-medium text-gray-900">{order.productName}</h3>
                                 <p className="text-sm text-gray-500">طلب رقم: #{order.id.slice(-8)}</p>
                                 <p className="text-sm text-gray-500">{formatDate(order.createdAt)}</p>
+                                {/* عرض حالة الشحن للمنتجات الملموسة */}
+                                {showShippingTracking && (
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${shippingStatusConfig.color}`}>
+                                      <ShippingIcon className="w-3 h-3 mr-1" />
+                                      حالة الشحن: {shippingStatusConfig.label}
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                               <div className="text-right">
                                 <div className="text-xl font-bold text-gray-900 mb-2">{formatPrice(order.totalAmount)}</div>
@@ -431,6 +667,19 @@ export default function CustomerDashboard() {
                               </div>
                             )}
                             
+                            {/* عرض عنوان الشحن للمنتجات الملموسة */}
+                            {showShippingTracking && order.shippingAddress && (
+                              <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                                <div className="flex items-start gap-2">
+                                  <MapPin className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+                                  <div className="flex-1">
+                                    <p className="text-sm font-medium text-green-800 mb-1">عنوان الشحن:</p>
+                                    <p className="text-sm text-green-700">{order.shippingAddress}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            
                             <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                               <div className="text-sm text-gray-500">
                                 الكمية: {order.quantity} | طريقة الدفع: {
@@ -438,6 +687,86 @@ export default function CustomerDashboard() {
                                   order.paymentMethod === 'card' ? 'بطاقة ائتمان' :
                                   order.paymentMethod === 'bank_transfer' ? 'حوالة بنكية' : 'محفظة رقمية'
                                 }
+                              </div>
+                              
+                              <div className="flex items-center gap-2">
+                                {/* زر تتبع الشحن للمنتجات الملموسة */}
+                                {showShippingTracking && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedOrderForTracking(order);
+                                      setShowShippingTrackingModal(true);
+                                    }}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                                  >
+                                    <Truck className="w-4 h-4" />
+                                    تتبع الشحن
+                                  </button>
+                                )}
+                                
+                                {/* زر التحميل للمنتجات التي تحتاج تنزيل */}
+                                {showDownloadButton && (
+                                  <button
+                                    onClick={() => window.open(downloadLink, '_blank')}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                                  >
+                                    <Download className="w-4 h-4" />
+                                    تحميل المنتج
+                                  </button>
+                                )}
+
+                                {/* زر طلب الإرجاع */}
+                                {order.status === 'completed' && 
+                                 order.paymentStatus === 'paid' && 
+                                 (!order.returnStatus || order.returnStatus === 'none') && 
+                                 settings?.website?.returnPolicy?.enabled && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedOrderForReturn(order);
+                                      setShowReturnRequestModal(true);
+                                    }}
+                                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                                  >
+                                    <RotateCcw className="w-4 h-4" />
+                                    طلب إرجاع
+                                  </button>
+                                )}
+
+                                {/* عرض حالة الإرجاع */}
+                                {order.returnStatus && order.returnStatus !== 'none' && (
+                                  <span className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium ${
+                                    order.returnStatus === 'requested' ? 'bg-yellow-100 text-yellow-800' :
+                                    order.returnStatus === 'approved' ? 'bg-blue-100 text-blue-800' :
+                                    order.returnStatus === 'rejected' ? 'bg-red-100 text-red-800' :
+                                    order.returnStatus === 'returned' ? 'bg-green-100 text-green-800' :
+                                    'bg-gray-100 text-gray-800'
+                                  }`}>
+                                    <RotateCcw className="w-4 h-4 mr-1" />
+                                    {
+                                      order.returnStatus === 'requested' ? 'طلب إرجاع قيد المراجعة' :
+                                      order.returnStatus === 'approved' ? 'تم الموافقة على الإرجاع' :
+                                      order.returnStatus === 'rejected' ? 'تم رفض طلب الإرجاع' :
+                                      order.returnStatus === 'returned' ? 'تم الإرجاع بنجاح' :
+                                      order.returnStatus === 'exchanged' ? 'تم الاستبدال' : ''
+                                    }
+                                  </span>
+                                )}
+
+                                {/* زر تحميل الفاتورة */}
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await downloadInvoicePDF(order.id);
+                                    } catch (error: any) {
+                                      alert(error.message || 'حدث خطأ في تحميل الفاتورة');
+                                    }
+                                  }}
+                                  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+                                  title={order.invoiceNumber ? `فاتورة رقم: ${order.invoiceNumber}` : 'تحميل الفاتورة'}
+                                >
+                                  <FileText className="w-4 h-4" />
+                                  {order.invoiceNumber ? `فاتورة ${order.invoiceNumber}` : 'تحميل الفاتورة'}
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -700,9 +1029,22 @@ export default function CustomerDashboard() {
                                 <div className="flex items-center gap-2">
                                   {subscription.status === 'active' && (
                                     <>
-                                      <button className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                                      <button 
+                                        onClick={() => handleSubscriptionManagement(subscription)}
+                                        className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                                      >
                                         <Settings className="w-3 h-3 mr-1" />
                                         إدارة
+                                      </button>
+                                      <button 
+                                        onClick={() => {
+                                          setSelectedSubscription(subscription);
+                                          setShowReviewModal(true);
+                                        }}
+                                        className="inline-flex items-center px-3 py-1.5 border border-yellow-300 text-xs font-medium rounded-md text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-colors"
+                                      >
+                                        <Star className="w-3 h-3 mr-1" />
+                                        تقييم
                                       </button>
                                       {!subscription.autoRenewal && isExpiring && (
                                         <button className="inline-flex items-center px-3 py-1.5 border border-blue-300 text-xs font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors">
@@ -713,10 +1055,22 @@ export default function CustomerDashboard() {
                                     </>
                                   )}
                                   {subscription.status === 'expired' && (
-                                    <button className="inline-flex items-center px-3 py-1.5 border border-green-300 text-xs font-medium rounded-md text-green-700 bg-green-50 hover:bg-green-100 transition-colors">
-                                      <RefreshCw className="w-3 h-3 mr-1" />
-                                      إعادة تفعيل
-                                    </button>
+                                    <>
+                                      <button 
+                                        onClick={() => {
+                                          setSelectedSubscription(subscription);
+                                          setShowReviewModal(true);
+                                        }}
+                                        className="inline-flex items-center px-3 py-1.5 border border-yellow-300 text-xs font-medium rounded-md text-yellow-700 bg-yellow-50 hover:bg-yellow-100 transition-colors"
+                                      >
+                                        <Star className="w-3 h-3 mr-1" />
+                                        تقييم
+                                      </button>
+                                      <button className="inline-flex items-center px-3 py-1.5 border border-green-300 text-xs font-medium rounded-md text-green-700 bg-green-50 hover:bg-green-100 transition-colors">
+                                        <RefreshCw className="w-3 h-3 mr-1" />
+                                        إعادة تفعيل
+                                      </button>
+                                    </>
                                   )}
                                 </div>
                               </div>
@@ -743,11 +1097,198 @@ export default function CustomerDashboard() {
         </div>
       </div>
 
+      {/* Reviews Tab */}
+      {activeTab === 'reviews' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">تقييماتي</h2>
+                <p className="text-sm text-gray-600">جميع التقييمات التي قدمتها للاشتراكات</p>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Star className="w-4 h-4 text-yellow-500" />
+                <span>{reviews.length} تقييم</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {reviews.length > 0 ? (
+              <ReviewList 
+                reviews={reviews} 
+                showActions={true}
+                onEdit={(review) => {
+                  setEditingReview(review);
+                  setShowEditModal(true);
+                }}
+                onDelete={async (reviewId) => {
+                  if (!confirm('هل أنت متأكد من حذف هذا التقييم؟')) return;
+                  
+                  try {
+                    await deleteSubscriptionReview(reviewId);
+                    
+                    // Update local state
+                    setReviews(prev => prev.filter(review => review.id !== reviewId));
+                    
+                    alert('تم حذف التقييم بنجاح!');
+                  } catch (error) {
+                    console.error('Error deleting review:', error);
+                    alert('حدث خطأ في حذف التقييم');
+                  }
+                }}
+              />
+            ) : (
+              <div className="text-center py-12">
+                <Star className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">لا توجد تقييمات</h3>
+                <p className="text-gray-500 mb-6">ابدأ بتقييم اشتراكاتك لمساعدة الآخرين</p>
+                <button 
+                  onClick={() => setActiveTab('subscriptions')}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors"
+                >
+                  <Star className="w-4 h-4 mr-2" />
+                  تقييم اشتراك
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Live Chat Support */}
       <LiveChat 
         customerName={customerUser?.displayName || customerUser?.email} 
         customerEmail={customerUser?.email} 
       />
+
+      {/* Review Modal */}
+      {selectedSubscription && (
+        <ReviewModal
+          isOpen={showReviewModal}
+          onClose={() => {
+            setShowReviewModal(false);
+            setSelectedSubscription(null);
+          }}
+          subscription={selectedSubscription}
+          customerEmail={customerUser?.email || ''}
+          customerName={customerUser?.displayName || customerUser?.email || ''}
+          onReviewAdded={async (rating: number) => {
+            // Reload reviews after adding new one
+            if (customerUser?.email) {
+              await getCustomerReviews(customerUser.email).then(setReviews);
+              
+              // If rating is positive (4 or 5 stars), show discount code
+              if (rating >= 4 && settings.website.reviewInvite?.enabled) {
+                setTimeout(() => {
+                  setShowReviewInviteWithCode(true);
+                }, 500);
+              }
+            }
+          }}
+        />
+      )}
+
+      {/* Edit Review Modal */}
+      {editingReview && (
+        <EditReviewModal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false);
+            setEditingReview(null);
+          }}
+          review={editingReview}
+          onReviewUpdated={() => {
+            // Reload reviews after updating
+            if (customerUser?.email) {
+              getCustomerReviews(customerUser.email).then(setReviews);
+            }
+          }}
+        />
+      )}
+
+      {/* Subscription Management Modal */}
+      {showSubscriptionManagement && selectedSubscriptionForManagement && (
+        <SubscriptionManagementModal
+          subscription={selectedSubscriptionForManagement}
+          onClose={handleCloseSubscriptionManagement}
+          onSubscriptionUpdated={() => {
+            // Reload subscriptions after updating
+            if (customerUser?.email) {
+              getCustomerSubscriptions(customerUser.email).then(setSubscriptions);
+            }
+          }}
+        />
+      )}
+
+        {/* Shipping Tracking Modal */}
+        <ShippingTrackingModal
+          isOpen={showShippingTrackingModal}
+          onClose={() => {
+            setShowShippingTrackingModal(false);
+            setSelectedOrderForTracking(null);
+          }}
+          order={selectedOrderForTracking}
+        />
+
+        {/* Return Request Modal */}
+        {showReturnRequestModal && selectedOrderForReturn && (
+          <ReturnRequestModal
+            isOpen={showReturnRequestModal}
+            onClose={() => {
+              setShowReturnRequestModal(false);
+              setSelectedOrderForReturn(null);
+            }}
+            order={selectedOrderForReturn}
+            onReturnRequested={async () => {
+              // Reload orders
+              if (customerUser?.email) {
+                const allOrders = await getOrders();
+                const customerOrders = allOrders.filter(order => 
+                  order.customerEmail.toLowerCase() === customerUser.email.toLowerCase()
+                );
+                setOrders(customerOrders);
+              }
+              alert('تم إرسال طلب الإرجاع بنجاح! سيتم مراجعة طلبك قريباً.');
+            }}
+          />
+        )}
+
+        {/* Review Invite Modal - Initial (without code) */}
+        {(settings?.website?.reviewInvite?.enabled ?? true) && (
+          <ReviewInviteModal
+            isOpen={showReviewInvite && !showReviewInviteWithCode}
+            onClose={() => {
+              setShowReviewInvite(false);
+              if (typeof window !== 'undefined') {
+                localStorage.setItem('reviewInviteDismissed', 'true');
+                localStorage.setItem('reviewInviteLastShown', Date.now().toString());
+              }
+            }}
+            onReviewClick={() => {
+              setActiveTab('reviews');
+            }}
+            discountCode={settings?.website?.reviewInvite?.discountCode || 'REVIEW10'}
+            discountPercentage={settings?.website?.reviewInvite?.discountPercentage || 10}
+            showDiscountCode={false}
+          />
+        )}
+
+        {/* Review Invite Modal - After positive review (with code) */}
+        {(settings?.website?.reviewInvite?.enabled ?? true) && (
+          <ReviewInviteModal
+            isOpen={showReviewInviteWithCode}
+            onClose={() => {
+              setShowReviewInviteWithCode(false);
+            }}
+            onReviewClick={() => {
+              setActiveTab('reviews');
+            }}
+            discountCode={settings?.website?.reviewInvite?.discountCode || 'REVIEW10'}
+            discountPercentage={settings?.website?.reviewInvite?.discountPercentage || 10}
+            showDiscountCode={true}
+          />
+        )}
     </div>
   );
 }

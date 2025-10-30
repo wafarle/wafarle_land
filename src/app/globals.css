@@ -1,5 +1,10 @@
 @import "tailwindcss";
-
+button.relative.inline-flex.h-6.w-11.items-center.rounded-full.transition-colors.bg-green-500,button.relative.inline-flex.h-6.w-11.items-center.rounded-full.transition-colors.bg-gray-600,button.relative.inline-flex.h-6.w-11.items-center.rounded-full.transition-colors.bg-red-500,button.relative.inline-flex.h-6.w-11.items-center.rounded-full.transition-colors.bg-blue-500,button.relative.inline-flex.h-6.w-11.items-center.rounded-full.transition-colors.bg-orange-500,button.relative.inline-flex.h-6.w-11.items-center.rounded-full.transition-colors.bg-blue-600,button.relative.inline-flex.h-6.w-11.items-center.rounded-full.transition-colors.bg-blue-600,button.relative.inline-flex.h-6.w-11.items-center.rounded-full.transition-colors.bg-purple-500 {
+  direction: ltr;
+}
+label.relative.inline-flex.items-center.cursor-pointer {
+  direction: ltr;
+}
 :root {
   --background: #ffffff;
   --foreground: #1f2937;
@@ -487,5 +492,222 @@ body.modal-open {
   .btn-secondary {
     padding: 10px 20px;
     font-size: 14px;
+  }
+}
+
+/* Live Chat Custom Styles */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom shadow for live chat */
+.hover\:shadow-3xl:hover {
+  box-shadow: 0 35px 60px -12px rgba(0, 0, 0, 0.3);
+}
+
+/* Smooth transitions for live chat elements */
+.live-chat-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Custom gradient backgrounds */
+.gradient-bg-1 {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.gradient-bg-2 {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.gradient-bg-3 {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+/* Message bubble animations */
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.message-slide-in {
+  animation: messageSlideIn 0.3s ease-out;
+}
+
+/* Typing indicator animation */
+@keyframes typingPulse {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-10px);
+  }
+}
+
+.typing-pulse {
+  animation: typingPulse 1.4s ease-in-out infinite;
+}
+
+/* Button hover effects */
+.button-hover-effect {
+  position: relative;
+  overflow: hidden;
+}
+
+.button-hover-effect::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.button-hover-effect:hover::before {
+  left: 100%;
+}
+
+/* Live Chat Enhanced Styles */
+.live-chat-container {
+  backdrop-filter: blur(10px);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.live-chat-header {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 50%, #475569 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.live-chat-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.1) 100%);
+  pointer-events: none;
+}
+
+.live-chat-message-customer {
+  background: linear-gradient(135deg, #475569 0%, #334155 100%);
+  box-shadow: 0 4px 12px rgba(71, 85, 105, 0.3);
+}
+
+.live-chat-message-support {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.live-chat-input {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e2e8f0;
+  transition: all 0.3s ease;
+}
+
+.live-chat-input:focus {
+  border-color: #475569;
+  box-shadow: 0 0 0 3px rgba(71, 85, 105, 0.1);
+}
+
+.live-chat-button-primary {
+  background: linear-gradient(135deg, #475569 0%, #334155 100%);
+  box-shadow: 0 4px 12px rgba(71, 85, 105, 0.3);
+  transition: all 0.3s ease;
+}
+
+.live-chat-button-primary:hover {
+  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+  box-shadow: 0 6px 16px rgba(71, 85, 105, 0.4);
+  transform: translateY(-1px);
+}
+
+.live-chat-button-secondary {
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+  transition: all 0.3s ease;
+}
+
+.live-chat-button-secondary:hover {
+  background: linear-gradient(135deg, #cbd5e1 0%, #94a3b8 100%);
+  transform: translateY(-1px);
+}
+
+.live-chat-quick-response {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e2e8f0;
+  transition: all 0.3s ease;
+}
+
+.live-chat-quick-response:hover {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border-color: #cbd5e1;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.live-chat-avatar-customer {
+  background: linear-gradient(135deg, #475569 0%, #334155 100%);
+  box-shadow: 0 4px 12px rgba(71, 85, 105, 0.3);
+}
+
+.live-chat-avatar-support {
+  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+}
+
+.live-chat-section-invoice {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border-color: #a7f3d0;
+}
+
+.live-chat-section-subscription {
+  background: linear-gradient(135deg, #f8fafc 0%, #e0e7ff 100%);
+  border-color: #c7d2fe;
+}
+
+.live-chat-typing-indicator {
+  animation: typingPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes typingPulse {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-10px);
+  }
+}
+
+.live-chat-status-online {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2);
+}
+
+.live-chat-status-online::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: inherit;
+  border-radius: inherit;
+  animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
   }
 }

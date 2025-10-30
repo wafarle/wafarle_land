@@ -12,17 +12,16 @@ import {
   where,
   onSnapshot,
   serverTimestamp,
-  increment
+  increment,
+  limit,
+  runTransaction
 } from 'firebase/firestore';
-import { Product, ContactMessage, Order, Customer, Subscription, ChatMessage, ChatConversation } from '@/lib/firebase';
+import { Product, ContactMessage, Order, Customer, Subscription, ChatMessage, ChatConversation, SubscriptionReview, DiscountCode } from '@/lib/firebase';
 import { CurrencySettings, DEFAULT_CURRENCY_SETTINGS } from '@/lib/currency';
+import { StaffUser, StaffRole } from '@/lib/firebase';
+import { db, FIREBASE_ENABLED } from '@/lib/firebase';
 
-// Temporarily disable Firebase to fix 400 errors
-const FIREBASE_ENABLED = false;
-const db = null;
-console.log('🔧 [CONFIG] Firebase forced disabled - using mock data only');
-
-const USE_FIREBASE = false; // Force disabled
+const USE_FIREBASE = FIREBASE_ENABLED && db;
 
 // Collections - only create if Firebase is enabled
 let productsCollection: any;
@@ -32,9 +31,22 @@ let customersCollection: any;
 let subscriptionsCollection: any;
 let chatConversationsCollection: any;
 let chatMessagesCollection: any;
+let discountCodesCollection: any;
+let staffCollection: any;
+let staffActivityCollection: any;
 
-// Firebase disabled - collections not initialized
-console.log('🔧 [COLLECTIONS] Skipping Firebase collection initialization');
+
+
+if (FIREBASE_ENABLED && db) {
+  productsCollection = collection(db, 'products');
+  messagesCollection = collection(db, 'messages');
+  ordersCollection = collection(db, 'orders');
+  customersCollection = collection(db, 'customers');
+  subscriptionsCollection = collection(db, 'subscriptions');
+  chatConversationsCollection = collection(db, 'chatConversations');
+  chatMessagesCollection = collection(db, 'chatMessages');
+  discountCodesCollection = collection(db, 'discountCodes');
+}
 
 // Mock data for development/fallback
 const mockProducts: Product[] = [
@@ -174,7 +186,30 @@ const mockProducts: Product[] = [
     defaultOptionId: 'shahid-monthly'
   },
 ];
-
+// بيانات تجريبية للموظفين - mock
+const mockStaffUsers: StaffUser[] = [
+  {
+    uid: 'super-1',
+    email: 'super@domain.com',
+    name: 'Super Admin',
+    role: 'super_admin',
+    avatar: '',
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+  {
+    uid: 'admin-1',
+    email: 'admin@domain.com',
+    name: 'مدير النظام',
+    role: 'admin',
+    avatar: '',
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  },
+];
+const mockStaffLogs: any[] = [];
 // Mock orders data for development/fallback
 const mockOrders: Order[] = [
   {
@@ -471,7 +506,7 @@ export const getChatConversations = async (): Promise<ChatConversation[]> => {
     return querySnapshot.docs.map(doc => {
       const data = doc.data() as any;
       return {
-        id: doc.id,
+      id: doc.id,
         ...data,
         lastMessageTime: data.lastMessageTime?.toDate() || new Date(),
         createdAt: data.createdAt?.toDate() || new Date(),
@@ -502,7 +537,7 @@ export const subscribeToChatConversations = (
       const conversations = querySnapshot.docs.map(doc => {
         const data = doc.data() as any;
         return {
-          id: doc.id,
+        id: doc.id,
           ...data,
           lastMessageTime: data.lastMessageTime?.toDate() || new Date(),
           createdAt: data.createdAt?.toDate() || new Date(),
@@ -772,7 +807,7 @@ export const getChatMessages = async (conversationId: string): Promise<ChatMessa
     let messages = querySnapshot.docs.map(doc => {
       const data = doc.data() as any;
       return {
-        id: doc.id,
+      id: doc.id,
         ...data,
         timestamp: data.timestamp?.toDate() || new Date()
       };
@@ -799,7 +834,7 @@ export const getChatMessages = async (conversationId: string): Promise<ChatMessa
         let messages = querySnapshot.docs.map(doc => {
           const data = doc.data() as any;
           return {
-            id: doc.id,
+          id: doc.id,
             ...data,
             timestamp: data.timestamp?.toDate() || new Date()
           };
@@ -898,7 +933,7 @@ export const getProducts = async (): Promise<Product[]> => {
     const firestoreProducts = querySnapshot.docs.map(doc => {
       const data = doc.data() as any;
       return {
-        id: doc.id,
+      id: doc.id,
         ...data,
         createdAt: data.createdAt?.toDate() || new Date(),
       };
@@ -989,7 +1024,7 @@ export const getMessages = async (): Promise<ContactMessage[]> => {
     return querySnapshot.docs.map(doc => {
       const data = doc.data() as any;
       return {
-        id: doc.id,
+      id: doc.id,
         ...data,
         createdAt: data.createdAt?.toDate() || new Date(),
       };
@@ -1036,7 +1071,7 @@ export const subscribeToProducts = (callback: (products: Product[]) => void) => 
     const products = querySnapshot.docs.map(doc => {
       const data = doc.data() as any;
       return {
-        id: doc.id,
+      id: doc.id,
         ...data,
         createdAt: data.createdAt?.toDate() || new Date(),
       };
@@ -1117,6 +1152,9 @@ export const getOrders = async (): Promise<Order[]> => {
       createdAt: (doc.data() as any).createdAt?.toDate() || new Date(),
       confirmedAt: (doc.data() as any).confirmedAt?.toDate() || undefined,
       deliveredAt: (doc.data() as any).deliveredAt?.toDate() || undefined,
+      shippedAt: (doc.data() as any).shippedAt?.toDate() || undefined,
+      invoiceGeneratedAt: (doc.data() as any).invoiceGeneratedAt?.toDate() || undefined,
+      invoiceSentAt: (doc.data() as any).invoiceSentAt?.toDate() || undefined,
     })) as Order[];
     
     console.log(`✅ Successfully loaded ${firestoreOrders.length} orders from Firestore`);
@@ -1128,6 +1166,97 @@ export const getOrders = async (): Promise<Order[]> => {
   }
 };
 
+// Update product stock
+export const updateProductStock = async (productId: string, quantityChange: number): Promise<void> => {
+  if (!FIREBASE_ENABLED || !db || !productsCollection) {
+    console.log('Firebase not enabled, simulating stock update');
+    return Promise.resolve();
+  }
+
+  try {
+    const productRef = doc(db, 'products', productId);
+    const productDoc = await import('firebase/firestore').then(({ getDoc }) => getDoc(productRef));
+    
+    if (!productDoc.exists()) {
+      throw new Error('Product not found');
+    }
+
+    const productData = productDoc.data() as Product;
+    
+    // Only update stock if stock management is enabled
+    if (productData.stockManagementEnabled && productData.productType === 'physical') {
+      const currentStock = productData.stock || 0;
+      const newStock = Math.max(0, currentStock + quantityChange);
+      
+      await updateDoc(productRef, {
+        stock: newStock,
+        outOfStock: newStock <= 0,
+        updatedAt: serverTimestamp()
+      });
+      
+      console.log(`✅ Stock updated: ${currentStock} → ${newStock} (${quantityChange > 0 ? '+' : ''}${quantityChange})`);
+      
+      // Check for low stock warning
+      if (newStock > 0 && newStock <= (productData.lowStockThreshold || 10)) {
+        console.warn(`⚠️ Low stock warning for product ${productId}: ${newStock} units remaining`);
+      }
+    }
+  } catch (error) {
+    console.error('Error updating product stock:', error);
+    throw error;
+  }
+};
+
+// Check product stock availability
+export const checkProductStock = async (productId: string, requestedQuantity: number): Promise<{
+  available: boolean;
+  currentStock: number;
+  message?: string;
+}> => {
+  if (!FIREBASE_ENABLED || !db || !productsCollection) {
+    return { available: true, currentStock: 999 };
+  }
+
+  try {
+    const productRef = doc(db, 'products', productId);
+    const productDoc = await import('firebase/firestore').then(({ getDoc }) => getDoc(productRef));
+    
+    if (!productDoc.exists()) {
+      return { available: false, currentStock: 0, message: 'المنتج غير موجود' };
+    }
+
+    const productData = productDoc.data() as Product;
+    
+    // If stock management is not enabled, always available
+    if (!productData.stockManagementEnabled || productData.productType !== 'physical') {
+      return { available: true, currentStock: 999 };
+    }
+
+    const currentStock = productData.stock || 0;
+    
+    if (productData.outOfStock || currentStock <= 0) {
+      return { 
+        available: false, 
+        currentStock: 0, 
+        message: 'المنتج نفد من المخزون' 
+      };
+    }
+
+    if (currentStock < requestedQuantity) {
+      return { 
+        available: false, 
+        currentStock, 
+        message: `المخزون المتاح: ${currentStock} وحدة فقط` 
+      };
+    }
+
+    return { available: true, currentStock };
+  } catch (error) {
+    console.error('Error checking product stock:', error);
+    return { available: false, currentStock: 0, message: 'حدث خطأ في التحقق من المخزون' };
+  }
+};
+
 // Add new order
 export const addOrder = async (order: Omit<Order, 'id' | 'createdAt'>): Promise<string> => {
   if (!FIREBASE_ENABLED || !db || !ordersCollection) {
@@ -1136,11 +1265,52 @@ export const addOrder = async (order: Omit<Order, 'id' | 'createdAt'>): Promise<
   }
 
   try {
+    // Check stock availability for physical products
+    if (order.productType === 'physical') {
+      const stockCheck = await checkProductStock(order.productId, order.quantity || 1);
+      
+      if (!stockCheck.available) {
+        throw new Error(stockCheck.message || 'المنتج غير متوفر في المخزون');
+      }
+    }
+
+    // Filter out undefined values to prevent Firebase errors
+    const cleanedOrder: Record<string, any> = {};
+    Object.entries(order).forEach(([key, value]) => {
+      if (value !== undefined) {
+        // Convert Date objects to Firestore Timestamps
+        if (value instanceof Date) {
+          cleanedOrder[key] = value;
+        } else {
+          cleanedOrder[key] = value;
+        }
+      }
+    });
+
     const docRef = await addDoc(ordersCollection, {
-      ...order,
+      ...cleanedOrder,
       createdAt: serverTimestamp(),
     });
+    
     console.log('✅ Order added successfully:', docRef.id);
+    
+    // Update product stock after order is created
+    if (order.productType === 'physical') {
+      const quantityToDeduct = -(order.quantity || 1);
+      await updateProductStock(order.productId, quantityToDeduct);
+    }
+
+    // Send notification to admin about new order
+    await sendNotificationToAdmin({
+      title: 'طلب جديد',
+      body: `طلب جديد من ${order.customerName}: ${order.productName}`,
+      data: {
+        orderId: docRef.id,
+        type: 'new_order',
+        customerEmail: order.customerEmail,
+      },
+    });
+    
     return docRef.id;
   } catch (error) {
     console.error('Error adding order:', error);
@@ -1174,6 +1344,17 @@ export const updateOrder = async (id: string, updates: Partial<Order>): Promise<
     if (updates.status === 'completed' && !updates.deliveredAt) {
       timestampedUpdates.deliveredAt = serverTimestamp();
     }
+    // Add timestamp for shipping status changes
+    if (updates.shippingStatus === 'shipped' && !currentOrder.shippedAt) {
+      timestampedUpdates.shippedAt = serverTimestamp();
+    }
+    if (updates.shippingStatus === 'delivered' && !currentOrder.deliveredAt && currentOrder.status !== 'completed') {
+      timestampedUpdates.deliveredAt = serverTimestamp();
+      // Auto-update order status to completed when delivered
+      if (!updates.status) {
+        timestampedUpdates.status = 'completed';
+      }
+    }
 
     // Filter out undefined values to prevent Firebase errors
     const filteredUpdates: Record<string, any> = {};
@@ -1195,6 +1376,65 @@ export const updateOrder = async (id: string, updates: Partial<Order>): Promise<
     // Check if order should be converted to subscription
     const finalOrder = { ...currentOrder, ...updates };
     await checkAndCreateSubscription(id, finalOrder);
+
+    // Send notification to customer if order status changed
+    if (updates.status && updates.status !== currentOrder.status) {
+      const statusMessages: Record<string, { title: string; body: string }> = {
+        confirmed: {
+          title: 'تم تأكيد طلبك',
+          body: `تم تأكيد طلبك رقم ${id} بنجاح`,
+        },
+        cancelled: {
+          title: 'تم إلغاء طلبك',
+          body: `تم إلغاء طلبك رقم ${id}`,
+        },
+        completed: {
+          title: 'تم إكمال طلبك',
+          body: `تم إكمال طلبك رقم ${id} بنجاح`,
+        },
+      };
+
+      const message = statusMessages[updates.status];
+      if (message) {
+        await sendNotificationToCustomer(currentOrder.customerEmail, {
+          title: message.title,
+          body: message.body,
+          data: {
+            orderId: id,
+            type: 'order_status_update',
+            status: updates.status,
+          },
+        });
+      }
+    }
+
+    // Send notification if shipping status changed
+    if (updates.shippingStatus && updates.shippingStatus !== currentOrder.shippingStatus) {
+      const shippingMessages: Record<string, { title: string; body: string }> = {
+        shipped: {
+          title: 'تم شحن طلبك',
+          body: `تم شحن طلبك رقم ${id} ${updates.shippingTrackingNumber ? `رقم التتبع: ${updates.shippingTrackingNumber}` : ''}`,
+        },
+        delivered: {
+          title: 'تم تسليم طلبك',
+          body: `تم تسليم طلبك رقم ${id} بنجاح`,
+        },
+      };
+
+      const message = shippingMessages[updates.shippingStatus];
+      if (message) {
+        await sendNotificationToCustomer(currentOrder.customerEmail, {
+          title: message.title,
+          body: message.body,
+          data: {
+            orderId: id,
+            type: 'shipping_update',
+            shippingStatus: updates.shippingStatus,
+            trackingNumber: updates.shippingTrackingNumber || currentOrder.shippingTrackingNumber || '',
+          },
+        });
+      }
+    }
     
   } catch (error) {
     console.error('Error updating order:', error);
@@ -1244,8 +1484,22 @@ export const deleteOrder = async (id: string): Promise<void> => {
       console.log('✅ Related subscription also deleted:', relatedSubscription.id);
     }
 
-    // Update customer stats after deletion
+    // Update customer stats after deletion (subtract the order amount)
+    // This will automatically adjust loyalty points and tier
     if (orderData && orderData.customerEmail) {
+      // Calculate points that were earned for this order
+      const settings = await getWebsiteSettings();
+      const loyaltyProgram = settings.website.loyaltyProgram;
+      
+      if (loyaltyProgram?.enabled && orderData.totalAmount) {
+        const pointsEarned = await calculateLoyaltyPoints(orderData.totalAmount);
+        if (pointsEarned > 0) {
+          // Deduct the points that were earned for this order
+          await redeemLoyaltyPoints(orderData.customerEmail, pointsEarned, 'Order cancelled - points deducted');
+        }
+      }
+      
+      // Update stats (negative amount will reduce totalSpent)
       await updateCustomerStats(orderData.customerEmail, -(orderData.totalAmount || 0));
     }
   } catch (error) {
@@ -1273,6 +1527,7 @@ export const getOrdersByStatus = async (status: Order['status']): Promise<Order[
       createdAt: (doc.data() as any).createdAt?.toDate() || new Date(),
       confirmedAt: (doc.data() as any).confirmedAt?.toDate() || undefined,
       deliveredAt: (doc.data() as any).deliveredAt?.toDate() || undefined,
+      shippedAt: (doc.data() as any).shippedAt?.toDate() || undefined,
     })) as Order[];
   } catch (error) {
     console.error('Error getting orders by status:', error);
@@ -1299,6 +1554,7 @@ export const getOrdersByPaymentStatus = async (paymentStatus: Order['paymentStat
       createdAt: (doc.data() as any).createdAt?.toDate() || new Date(),
       confirmedAt: (doc.data() as any).confirmedAt?.toDate() || undefined,
       deliveredAt: (doc.data() as any).deliveredAt?.toDate() || undefined,
+      shippedAt: (doc.data() as any).shippedAt?.toDate() || undefined,
     })) as Order[];
   } catch (error) {
     console.error('Error getting orders by payment status:', error);
@@ -1322,6 +1578,9 @@ export const subscribeToOrders = (callback: (orders: Order[]) => void) => {
       createdAt: (doc.data() as any).createdAt?.toDate() || new Date(),
       confirmedAt: (doc.data() as any).confirmedAt?.toDate() || undefined,
       deliveredAt: (doc.data() as any).deliveredAt?.toDate() || undefined,
+      shippedAt: (doc.data() as any).shippedAt?.toDate() || undefined,
+      invoiceGeneratedAt: (doc.data() as any).invoiceGeneratedAt?.toDate() || undefined,
+      invoiceSentAt: (doc.data() as any).invoiceSentAt?.toDate() || undefined,
     })) as Order[];
     callback(orders);
   });
@@ -1372,6 +1631,11 @@ export const addCustomer = async (customer: Omit<Customer, 'id' | 'registrationD
       totalOrders: 0,
       totalSpent: 0,
       averageOrderValue: 0,
+      // Set default loyalty values if not provided
+      loyaltyPoints: customer.loyaltyPoints || 0,
+      totalLoyaltyPointsEarned: customer.totalLoyaltyPointsEarned || 0,
+      totalLoyaltyPointsRedeemed: customer.totalLoyaltyPointsRedeemed || 0,
+      loyaltyTier: customer.loyaltyTier || 'bronze',
     });
     console.log('✅ Customer added successfully:', docRef.id);
     return docRef.id;
@@ -1545,6 +1809,241 @@ export const subscribeToCustomers = (callback: (customers: Customer[]) => void) 
   });
 };
 
+// ===============================
+// Push Notifications Functions
+// ===============================
+
+/**
+ * Send notification to admin
+ */
+export const sendNotificationToAdmin = async (notification: {
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+}): Promise<void> => {
+  try {
+    // In production, this would:
+    // 1. Get all admin FCM tokens from database
+    // 2. Send notification via Firebase Admin SDK
+    
+    // For now, we'll use the API route
+    if (typeof window !== 'undefined') {
+      await fetch('/api/notifications/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: 'admin',
+          ...notification,
+        }),
+      });
+    }
+
+    console.log('✅ Admin notification sent:', notification.title);
+  } catch (error) {
+    console.error('Error sending admin notification:', error);
+    // Don't throw - notification failures shouldn't break the flow
+  }
+};
+
+/**
+ * Send notification to customer
+ */
+export const sendNotificationToCustomer = async (
+  customerEmail: string,
+  notification: {
+    title: string;
+    body: string;
+    data?: Record<string, string>;
+  }
+): Promise<void> => {
+  try {
+    if (!FIREBASE_ENABLED || !db) {
+      console.log('Firebase not enabled, simulating customer notification');
+      return;
+    }
+
+    // Get customer's FCM token from database
+    const tokensCollection = collection(db, 'fcm_tokens');
+    const q = query(
+      tokensCollection,
+      where('userEmail', '==', customerEmail),
+      where('active', '==', true)
+    );
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+      console.log('No FCM token found for customer:', customerEmail);
+      return;
+    }
+
+    // Send notification to all tokens for this customer
+    const promises = querySnapshot.docs.map(async (tokenDoc) => {
+      const tokenData = tokenDoc.data();
+      if (typeof window !== 'undefined') {
+        await fetch('/api/notifications/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            to: 'customer',
+            token: tokenData.token,
+            ...notification,
+          }),
+        });
+      }
+    });
+
+    await Promise.all(promises);
+    console.log('✅ Customer notification sent:', {
+      customerEmail,
+      title: notification.title,
+    });
+  } catch (error) {
+    console.error('Error sending customer notification:', error);
+    // Don't throw - notification failures shouldn't break the flow
+  }
+};
+
+// ===============================
+// Loyalty Points Functions
+// ===============================
+
+/**
+ * Calculate loyalty points earned for an order
+ */
+export const calculateLoyaltyPoints = async (orderAmount: number): Promise<number> => {
+  try {
+    const settings = await getWebsiteSettings();
+    const loyaltyProgram = settings.website.loyaltyProgram;
+
+    // If loyalty program is disabled, return 0
+    if (!loyaltyProgram?.enabled) {
+      return 0;
+    }
+
+    // Calculate points per dollar
+    const pointsFromAmount = Math.floor(orderAmount * (loyaltyProgram.pointsPerDollar || 0));
+    
+    // Add fixed points per order
+    const pointsPerOrder = loyaltyProgram.pointsPerOrder || 0;
+
+    const totalPoints = pointsFromAmount + pointsPerOrder;
+    
+    console.log('🎁 Loyalty points calculated:', {
+      orderAmount,
+      pointsPerDollar: loyaltyProgram.pointsPerDollar,
+      pointsFromAmount,
+      pointsPerOrder,
+      totalPoints
+    });
+
+    return totalPoints;
+  } catch (error) {
+    console.error('Error calculating loyalty points:', error);
+    return 0;
+  }
+};
+
+/**
+ * Determine loyalty tier based on total spent
+ */
+export const getLoyaltyTier = async (totalSpent: number): Promise<'bronze' | 'silver' | 'gold' | 'platinum'> => {
+  try {
+    const settings = await getWebsiteSettings();
+    const loyaltyProgram = settings.website.loyaltyProgram;
+
+    if (!loyaltyProgram?.enabled || !loyaltyProgram.tiers) {
+      return 'bronze';
+    }
+
+    const { tiers } = loyaltyProgram;
+
+    // Check tiers from highest to lowest
+    if (totalSpent >= tiers.platinum.minSpent) {
+      return 'platinum';
+    } else if (totalSpent >= tiers.gold.minSpent) {
+      return 'gold';
+    } else if (totalSpent >= tiers.silver.minSpent) {
+      return 'silver';
+    } else {
+      return 'bronze';
+    }
+  } catch (error) {
+    console.error('Error determining loyalty tier:', error);
+    return 'bronze';
+  }
+};
+
+/**
+ * Redeem (deduct) loyalty points from customer account
+ */
+export const redeemLoyaltyPoints = async (
+  customerEmail: string,
+  points: number,
+  reason: string = 'Points redeemed'
+): Promise<boolean> => {
+  if (!FIREBASE_ENABLED || !db || !customersCollection) {
+    console.log('Firebase not enabled, simulating loyalty points redemption');
+    return false;
+  }
+
+  if (points <= 0) {
+    return false;
+  }
+
+  try {
+    // Find customer by email
+    const q = query(customersCollection, where('email', '==', customerEmail));
+    const querySnapshot = await getDocs(q);
+    
+    if (querySnapshot.empty) {
+      console.log('⚠️ Customer not found for loyalty points redemption:', customerEmail);
+      return false;
+    }
+
+    const customerDoc = querySnapshot.docs[0];
+    const customerData = customerDoc.data() as Customer;
+    
+    const currentPoints = customerData.loyaltyPoints || 0;
+    
+    // Check if customer has enough points
+    if (currentPoints < points) {
+      console.log('⚠️ Insufficient loyalty points:', {
+        customerEmail,
+        requested: points,
+        available: currentPoints
+      });
+      return false;
+    }
+
+    const newPoints = currentPoints - points;
+    const totalRedeemed = customerData.totalLoyaltyPointsRedeemed || 0;
+    const newTotalRedeemed = totalRedeemed + points;
+    
+    await updateDoc(customerDoc.ref, {
+      loyaltyPoints: newPoints,
+      totalLoyaltyPointsRedeemed: newTotalRedeemed,
+      updatedAt: serverTimestamp()
+    });
+    
+    console.log('✅ Loyalty points redeemed:', {
+      customerEmail,
+      points,
+      currentPoints,
+      newPoints,
+      reason
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error redeeming loyalty points:', error);
+    throw error;
+  }
+};
+
 // Update customer stats (called when orders change)
 export const updateCustomerStats = async (customerEmail: string, newOrderAmount: number): Promise<void> => {
   if (!FIREBASE_ENABLED || !db || !customersCollection) {
@@ -1565,22 +2064,61 @@ export const updateCustomerStats = async (customerEmail: string, newOrderAmount:
       const newTotalSpent = customerData.totalSpent + newOrderAmount;
       const newAverageOrderValue = newTotalSpent / newTotalOrders;
       
-      await updateDoc(customerDoc.ref, {
+      // Get settings for loyalty program
+      const settings = await getWebsiteSettings();
+      const loyaltyProgram = settings.website.loyaltyProgram;
+
+      const updates: Record<string, any> = {
         totalOrders: newTotalOrders,
         totalSpent: newTotalSpent,
         averageOrderValue: newAverageOrderValue,
         lastOrderDate: serverTimestamp()
-      });
+      };
+
+      // Calculate and add loyalty points if program is enabled
+      if (loyaltyProgram?.enabled) {
+        const pointsEarned = await calculateLoyaltyPoints(newOrderAmount);
+        if (pointsEarned > 0) {
+          const currentPoints = customerData.loyaltyPoints || 0;
+          const totalEarned = customerData.totalLoyaltyPointsEarned || 0;
+          updates.loyaltyPoints = currentPoints + pointsEarned;
+          updates.totalLoyaltyPointsEarned = totalEarned + pointsEarned;
+        }
+
+        // Update loyalty tier
+        const newTier = await getLoyaltyTier(newTotalSpent);
+        const currentTier = customerData.loyaltyTier || 'bronze';
+        if (newTier !== currentTier) {
+          updates.loyaltyTier = newTier;
+        }
+      }
       
-      console.log('✅ Customer stats updated successfully');
+      await updateDoc(customerDoc.ref, updates);
+      
+      console.log('✅ Customer stats updated:', {
+        customerEmail,
+        totalOrders: newTotalOrders,
+        totalSpent: newTotalSpent,
+        ...(loyaltyProgram?.enabled && {
+          pointsEarned: updates.loyaltyPoints ? updates.loyaltyPoints - (customerData.loyaltyPoints || 0) : 0,
+          newTier: updates.loyaltyTier || customerData.loyaltyTier
+        })
+      });
     } else {
       // Create new customer if not exists
+      const settings = await getWebsiteSettings();
+      const loyaltyProgram = settings.website.loyaltyProgram;
+      const pointsEarned = loyaltyProgram?.enabled ? await calculateLoyaltyPoints(newOrderAmount) : 0;
+      
       await addCustomer({
         name: 'عميل جديد', // Default name, should be updated later
         email: customerEmail,
         phone: '', // Will be updated later
         status: 'active',
         lastOrderDate: new Date(),
+        loyaltyPoints: pointsEarned,
+        totalLoyaltyPointsEarned: pointsEarned,
+        loyaltyTier: loyaltyProgram?.enabled ? await getLoyaltyTier(newOrderAmount) : 'bronze',
       });
     }
   } catch (error) {
@@ -1684,140 +2222,289 @@ export const subscribeToCurrencySettings = (callback: (settings: CurrencySetting
 // ===============================
 
 // Check if order should be converted to subscription
+// const checkAndCreateSubscription = async (orderId: string, order: Order): Promise<void> => {
+//   try {
+//     // Check if order qualifies for subscription creation
+//     const shouldCreateSubscription = 
+//       order.status === 'confirmed' && 
+//       order.paymentStatus === 'paid' &&
+//       !order.subscriptionStartDate; // Don't create duplicate subscriptions
+
+//     if (!shouldCreateSubscription) {
+//       return;
+//     }
+
+//     console.log('🎯 Creating subscription for confirmed and paid order:', orderId);
+
+//     // Get product details to determine subscription duration
+//     const products = await getProducts();
+//     const product = products.find(p => p.id === order.productId);
+    
+//     if (!product) {
+//       console.error('Product not found for order:', orderId);
+//       return;
+//     }
+
+//     // Calculate subscription details
+//     let durationMonths = 1; // Default to 1 month
+//     let planType = 'شهري';
+//     let subscriptionPrice = order.totalAmount;
+
+//     // Check if order has product options (subscription plans)
+//     if (order.notes && order.notes.includes('خطة:')) {
+//       const planMatch = order.notes.match(/خطة:\s*(.+?)(?:\s|$|,)/);
+//       if (planMatch) {
+//         planType = planMatch[1].trim();
+        
+//         // Determine duration based on plan type
+//         switch (planType.toLowerCase()) {
+//           case 'شهري':
+//           case 'monthly':
+//             durationMonths = 1;
+//             break;
+//           case 'ربع سنوي':
+//           case 'quarterly':
+//             durationMonths = 3;
+//             break;
+//           case 'نصف سنوي':
+//           case 'semi-annual':
+//             durationMonths = 6;
+//             break;
+//           case 'سنوي':
+//           case 'annual':
+//             durationMonths = 12;
+//             break;
+//           default:
+//             // Try to extract number from plan type
+//             const durationMatch = planType.match(/(\d+)/);
+//             if (durationMatch) {
+//               durationMonths = parseInt(durationMatch[1]);
+//             }
+//         }
+//       }
+//     }
+
+//     // Calculate start and end dates more accurately
+//     const startDate = new Date();
+//     const endDate = new Date();
+    
+//     // Add months more accurately considering different month lengths
+//     for (let i = 0; i < durationMonths; i++) {
+//       endDate.setMonth(endDate.getMonth() + 1);
+//       // Handle edge case where the day doesn't exist in the new month
+//       // e.g., Jan 31 -> Feb 28/29
+//       if (endDate.getDate() !== startDate.getDate()) {
+//         endDate.setDate(0); // Go to last day of previous month
+//       }
+//     }
+
+//     // Calculate remaining days more precisely
+//     const remainingDays = Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+
+//     // Create subscription object
+//     const subscription: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt'> = {
+//       orderId: orderId,
+//       customerId: order.customerEmail, // Using email as customer ID for now
+//       customerEmail: order.customerEmail,
+//       productId: order.productId,
+//       productName: order.productName,
+//       productImage: product.image,
+//       planType: planType,
+//       price: subscriptionPrice,
+//       startDate: startDate,
+//       endDate: endDate,
+//       durationMonths: durationMonths,
+//       status: 'active',
+//       autoRenewal: false, // Default to manual renewal
+//       paymentStatus: 'paid',
+//       remainingDays: remainingDays,
+//       usageCount: 0,
+//       maxUsage: 9999,
+//       features: product.features || [],
+//       notes: `تم إنشاؤه تلقائياً من الطلب ${orderId}`
+//     };
+
+//     // Create the subscription
+//     const subscriptionId = await addSubscription(subscription);
+
+//     // Update the order with subscription details
+//     if (FIREBASE_ENABLED && db) {
+//       const orderRef = doc(db, 'orders', orderId);
+//       await updateDoc(orderRef, {
+//         subscriptionStartDate: startDate,
+//         subscriptionEndDate: endDate,
+//         subscriptionDurationMonths: durationMonths,
+//         subscriptionStatus: 'active',
+//         autoRenewal: false,
+//         notes: order.notes ? 
+//           `${order.notes} | اشتراك نشط: ${subscriptionId}` : 
+//           `اشتراك نشط: ${subscriptionId}`
+//       });
+//     }
+
+//     console.log('🎉 Subscription created successfully!', {
+//       orderId,
+//       subscriptionId,
+//       planType,
+//       durationMonths,
+//       endDate: endDate.toISOString()
+//     });
+
+//     // Update customer stats
+//     await updateCustomerStats(order.customerEmail, order.totalAmount || 0);
+
+//   } catch (error) {
+//     console.error('Error creating subscription from order:', error);
+//     // Don't throw error to avoid breaking order update
+//   }
+// };
+
 const checkAndCreateSubscription = async (orderId: string, order: Order): Promise<void> => {
   try {
-    // Check if order qualifies for subscription creation
-    const shouldCreateSubscription = 
-      order.status === 'confirmed' && 
-      order.paymentStatus === 'paid' &&
-      !order.subscriptionStartDate; // Don't create duplicate subscriptions
+    // الشرط: الطلب مؤكد ومدفوع
+    const eligible = order.status === 'confirmed' && order.paymentStatus === 'paid';
+    if (!eligible) return;
 
-    if (!shouldCreateSubscription) {
-      return;
-    }
+    console.log('🎯 Upsert subscription for confirmed & paid order:', orderId);
 
-    console.log('🎯 Creating subscription for confirmed and paid order:', orderId);
-
-    // Get product details to determine subscription duration
+    // 1) احصل على تفاصيل المنتج (كما في كودك الأصلي)
     const products = await getProducts();
     const product = products.find(p => p.id === order.productId);
-    
     if (!product) {
       console.error('Product not found for order:', orderId);
       return;
     }
 
-    // Calculate subscription details
-    let durationMonths = 1; // Default to 1 month
-    let planType = 'شهري';
+    // 2) التحقق من نوع المنتج: المنتجات الملموسة أو التي تحتاج تنزيل لا تتحول إلى اشتراكات
+    const productType = product.productType || order.productType;
+    if (productType === 'physical' || productType === 'download') {
+      console.log('⛔ Product type is physical or download, skipping subscription creation:', {
+        orderId,
+        productType,
+        productName: product.name
+      });
+      return;
+    }
+
+    // 3) احسب تفاصيل الخطة والمدة
+    let durationMonths = order.quantity;
+    let planType =  order.quantity;
     let subscriptionPrice = order.totalAmount;
 
-    // Check if order has product options (subscription plans)
-    if (order.notes && order.notes.includes('خطة:')) {
-      const planMatch = order.notes.match(/خطة:\s*(.+?)(?:\s|$|,)/);
-      if (planMatch) {
-        planType = planMatch[1].trim();
-        
-        // Determine duration based on plan type
-        switch (planType.toLowerCase()) {
-          case 'شهري':
-          case 'monthly':
-            durationMonths = 1;
-            break;
-          case 'ربع سنوي':
-          case 'quarterly':
-            durationMonths = 3;
-            break;
-          case 'نصف سنوي':
-          case 'semi-annual':
-            durationMonths = 6;
-            break;
-          case 'سنوي':
-          case 'annual':
-            durationMonths = 12;
-            break;
-          default:
-            // Try to extract number from plan type
-            const durationMatch = planType.match(/(\d+)/);
-            if (durationMatch) {
-              durationMonths = parseInt(durationMatch[1]);
-            }
-        }
-      }
-    }
+    // if (order.notes && order.notes.includes('خطة:')) {
+    //   const planMatch = order.notes.match(/خطة:\s*(.+?)(?:\s|$|,)/);
+    //   if (planMatch) {
+    //     planType = planMatch[1].trim();
+    //     switch (planType.toLowerCase()) {
+    //       case 'شهري':
+    //       case 'monthly':
+    //         durationMonths = 1; break;
+    //       case 'ربع سنوي':
+    //       case 'quarterly':
+    //         durationMonths = 3; break;
+    //       case 'نصف سنوي':
+    //       case 'semi-annual':
+    //         durationMonths = 6; break;
+    //       case 'سنوي':
+    //       case 'annual':
+    //         durationMonths = 12; break;
+    //       default: {
+    //         const m = planType.match(/(\d+)/);
+    //         if (m) durationMonths = parseInt(m[1], 10);
+    //       }
+    //     }
+    //   }
+    // }
 
-    // Calculate start and end dates more accurately
+    // 3) تواريخ البداية والنهاية
     const startDate = new Date();
     const endDate = new Date();
-    
-    // Add months more accurately considering different month lengths
     for (let i = 0; i < durationMonths; i++) {
+      const originalDay = startDate.getDate();
       endDate.setMonth(endDate.getMonth() + 1);
-      // Handle edge case where the day doesn't exist in the new month
-      // e.g., Jan 31 -> Feb 28/29
-      if (endDate.getDate() !== startDate.getDate()) {
-        endDate.setDate(0); // Go to last day of previous month
-      }
+      if (endDate.getDate() !== originalDay) endDate.setDate(0);
     }
-
-    // Calculate remaining days more precisely
     const remainingDays = Math.ceil((endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
 
-    // Create subscription object
-    const subscription: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt'> = {
-      orderId: orderId,
-      customerId: order.customerEmail, // Using email as customer ID for now
-      customerEmail: order.customerEmail,
-      productId: order.productId,
-      productName: order.productName,
-      productImage: product.image,
-      planType: planType,
-      price: subscriptionPrice,
-      startDate: startDate,
-      endDate: endDate,
-      durationMonths: durationMonths,
-      status: 'active',
-      autoRenewal: false, // Default to manual renewal
-      paymentStatus: 'paid',
-      remainingDays: remainingDays,
-      usageCount: 0,
-      maxUsage: 9999,
-      features: product.features || [],
-      notes: `تم إنشاؤه تلقائياً من الطلب ${orderId}`
-    };
+    // 4) ابحث إن كان هناك اشتراك موجود لنفس orderId (قديم بمعرف عشوائي)
+    if (!FIREBASE_ENABLED || !db) return;
 
-    // Create the subscription
-    const subscriptionId = await addSubscription(subscription);
+    const subsCol = collection(db, 'subscriptions');
+    const existingQ = query(subsCol, where('orderId', '==', orderId), limit(1));
+    const existingSnap = await getDocs(existingQ);
 
-    // Update the order with subscription details
-    if (FIREBASE_ENABLED && db) {
-      const orderRef = doc(db, 'orders', orderId);
-      await updateDoc(orderRef, {
+    // لو موجود، استخدم نفس المستند؛ وإلا استخدم معرف ثابت = orderId
+    const subRef = existingSnap.empty
+      ? doc(db, 'subscriptions', orderId)
+      : doc(db, 'subscriptions', existingSnap.docs[0].id);
+
+    const orderRef = doc(db, 'orders', orderId);
+
+    // 5) Transaction تضمن عدم التكرار في حالات السباق
+    await runTransaction(db, async (tx) => {
+      const subSnap = await tx.get(subRef);
+
+      // البيانات التي نحدّثها/ننشيها
+      const baseData = {
+        orderId,
+        customerId: order.customerEmail,
+        customerEmail: order.customerEmail,
+        productId: order.productId,
+        productName: order.productName,
+        productImage: product.image,
+        planType,
+        price: subscriptionPrice,
+        startDate,
+        endDate,
+        durationMonths,
+        status: 'active' as const,
+        autoRenewal: false,
+        paymentStatus: 'paid' as const,
+        remainingDays,
+        usageCount: subSnap.exists() ? (subSnap.data().usageCount ?? 0) : 0,
+        maxUsage: subSnap.exists() ? (subSnap.data().maxUsage ?? 9999) : 9999,
+        features: product.features || [],
+        notes: `تم إنشاؤه/تحديثه تلقائيًا من الطلب ${orderId}`,
+        updatedAt: serverTimestamp(),
+      };
+
+      if (subSnap.exists()) {
+        // تحديث الاشتراك الحالي
+        tx.update(subRef, baseData);
+      } else {
+        // إنشاء اشتراك جديد بمعرف حتمي
+        tx.set(subRef, { ...baseData, createdAt: serverTimestamp() });
+      }
+
+      // حدّث الطلب بعلم الاشتراك ومعرّفه وتواريخه
+      tx.update(orderRef, {
         subscriptionStartDate: startDate,
         subscriptionEndDate: endDate,
         subscriptionDurationMonths: durationMonths,
         subscriptionStatus: 'active',
         autoRenewal: false,
-        notes: order.notes ? 
-          `${order.notes} | اشتراك نشط: ${subscriptionId}` : 
-          `اشتراك نشط: ${subscriptionId}`
+        subscriptionId: subRef.id,
+        subscriptionCreated: true,
+        notes: order.notes && !String(order.notes).includes('اشتراك نشط:')
+          ? `${order.notes} | اشتراك نشط: ${subRef.id}`
+          : (order.notes ?? `اشتراك نشط: ${subRef.id}`),
+        updatedAt: serverTimestamp(),
       });
-    }
-
-    console.log('🎉 Subscription created successfully!', {
-      orderId,
-      subscriptionId,
-      planType,
-      durationMonths,
-      endDate: endDate.toISOString()
     });
 
-    // Update customer stats
+    console.log('🎉 Subscription upserted successfully!', {
+      orderId,
+      planType,
+      durationMonths,
+      endDate: endDate.toISOString(),
+    });
+
+    // 6) إحصائيات العميل (خارج الترانزاكشن)
     await updateCustomerStats(order.customerEmail, order.totalAmount || 0);
 
   } catch (error) {
-    console.error('Error creating subscription from order:', error);
-    // Don't throw error to avoid breaking order update
+    console.error('Error upserting subscription from order:', error);
+    // لا نرمي الخطأ حتى لا نكسر عملية تحديث الطلب
   }
 };
 
@@ -2110,7 +2797,14 @@ export const subscribeToCustomerSubscriptions = (
     const customerSubs = mockSubscriptions.filter(sub => 
       sub.customerEmail.toLowerCase() === customerEmail.toLowerCase()
     );
-    callback(customerSubs.map(sub => ({
+    // تصفية الاشتراكات: إزالة المنتجات الملموسة أو التي تحتاج تنزيل
+    const filteredSubs = customerSubs.filter(sub => {
+      const product = mockProducts.find(p => p.id === sub.productId);
+      if (!product) return true; // إذا لم نجد المنتج، نعرضه (قديم)
+      const productType = product.productType;
+      return productType !== 'physical' && productType !== 'download';
+    });
+    callback(filteredSubs.map(sub => ({
       ...sub,
       remainingDays: Math.ceil((sub.endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     })).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
@@ -2135,7 +2829,7 @@ export const subscribeToCustomerSubscriptions = (
     console.log('💡 Create index for better performance: https://console.firebase.google.com/v1/r/project/wafarle-63a71/firestore/indexes');
   }
   
-  return onSnapshot(q, (snapshot) => {
+  return onSnapshot(q, async (snapshot) => {
     let subscriptions = snapshot.docs.map(doc => ({
       id: doc.id,
       ...(doc.data() as any),
@@ -2149,14 +2843,30 @@ export const subscribeToCustomerSubscriptions = (
     // Sort manually to ensure consistent ordering
     subscriptions = subscriptions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
     
-    callback(subscriptions);
+    // تصفية الاشتراكات: إزالة المنتجات الملموسة أو التي تحتاج تنزيل
+    const products = await getProducts();
+    const filteredSubscriptions = subscriptions.filter(subscription => {
+      const product = products.find(p => p.id === subscription.productId);
+      if (!product) return true; // إذا لم نجد المنتج، نعرضه (قديم)
+      const productType = product.productType;
+      return productType !== 'physical' && productType !== 'download';
+    });
+    
+    callback(filteredSubscriptions);
   }, (error) => {
     console.error('Error in subscription listener:', error);
     // Fallback to mock data on error
     const customerSubs = mockSubscriptions.filter(sub => 
       sub.customerEmail.toLowerCase() === customerEmail.toLowerCase()
     );
-    callback(customerSubs.map(sub => ({
+    // تصفية الاشتراكات: إزالة المنتجات الملموسة أو التي تحتاج تنزيل
+    const filteredSubs = customerSubs.filter(sub => {
+      const product = mockProducts.find(p => p.id === sub.productId);
+      if (!product) return true; // إذا لم نجد المنتج، نعرضه (قديم)
+      const productType = product.productType;
+      return productType !== 'physical' && productType !== 'download';
+    });
+    callback(filteredSubs.map(sub => ({
       ...sub,
       remainingDays: Math.ceil((sub.endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     })).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
@@ -2223,6 +2933,60 @@ export interface WebsiteSettings {
   maintenanceMode: boolean;
   logo?: string;
   favicon?: string;
+  // Payment Gateways
+  paymentGateways?: {
+    paypal: {
+      enabled: boolean;
+      clientId?: string;
+      secretKey?: string;
+      mode: 'sandbox' | 'live';
+    };
+    stripe: {
+      enabled: boolean;
+      publishableKey?: string;
+      secretKey?: string;
+      mode: 'test' | 'live';
+    };
+    moyasar: {
+      enabled: boolean;
+      publishableKey?: string;
+      secretKey?: string;
+      mode: 'test' | 'live';
+    };
+  };
+  // Email Notifications
+  emailNotifications?: {
+    newOrder: boolean;
+    orderConfirmed: boolean;
+    orderShipped: boolean;
+    orderDelivered: boolean;
+    orderCancelled: boolean;
+    paymentReceived: boolean;
+    refundProcessed: boolean;
+    returnRequested: boolean;
+    returnApproved: boolean;
+  };
+  // Loyalty Program
+  loyaltyProgram?: {
+    enabled: boolean;
+    pointsPerDollar: number; // نقاط لكل دولار
+    pointsPerOrder: number; // نقاط إضافية لكل طلب
+    redemptionRate: number; // قيمة النقطة بالدولار (مثال: 100 نقطة = 1 دولار)
+    tiers: {
+      bronze: { minSpent: number; discount: number };
+      silver: { minSpent: number; discount: number };
+      gold: { minSpent: number; discount: number };
+      platinum: { minSpent: number; discount: number };
+    };
+  };
+  // Returns and Refunds
+  returnPolicy?: {
+    enabled: boolean;
+    returnPeriodDays: number; // فترة السماح بالإرجاع (أيام)
+    refundMethod: 'original' | 'store_credit' | 'both';
+    requireReason: boolean;
+    autoApprove: boolean; // الموافقة التلقائية على الإرجاع
+  };
   socialLinks: {
     facebook: string;
     twitter: string;
@@ -2232,6 +2996,57 @@ export interface WebsiteSettings {
     tiktok: string;
     snapchat: string;
     telegram: string;
+  };
+  reviewInvite: {
+    enabled: boolean;
+    discountCode: string;
+    discountPercentage: number;
+  };
+  // Email Service Settings
+  emailService?: {
+    provider: 'resend' | 'sendgrid' | 'ses' | 'nodemailer' | 'none';
+    apiKey?: string;
+    fromEmail: string;
+    fromName: string;
+    replyTo?: string;
+    enabled: boolean;
+  };
+  seo: {
+    metaTitle: string;
+    metaDescription: string;
+    metaKeywords: string;
+    ogTitle: string;
+    ogDescription: string;
+    ogImage: string;
+    twitterCard: string;
+    twitterSite: string;
+    twitterCreator: string;
+    canonicalUrl: string;
+    robotsIndex: boolean;
+    robotsFollow: boolean;
+    structuredData: {
+      organization: {
+        name: string;
+        url: string;
+        logo: string;
+        description: string;
+        contactPoint: {
+          telephone: string;
+          contactType: string;
+          email: string;
+        };
+        sameAs: string[];
+      };
+      website: {
+        name: string;
+        url: string;
+        description: string;
+        potentialAction: {
+          target: string;
+          queryInput: string;
+        };
+      };
+    };
   };
 }
 
@@ -2307,6 +3122,60 @@ export const DEFAULT_WEBSITE_SETTINGS: WebsiteSettings = {
   language: 'ar',
   timezone: 'Asia/Riyadh',
   maintenanceMode: false,
+  // Payment Gateways
+  paymentGateways: {
+    paypal: {
+      enabled: false,
+      clientId: '',
+      secretKey: '',
+      mode: 'sandbox'
+    },
+    stripe: {
+      enabled: false,
+      publishableKey: '',
+      secretKey: '',
+      mode: 'test'
+    },
+    moyasar: {
+      enabled: false,
+      publishableKey: '',
+      secretKey: '',
+      mode: 'test'
+    }
+  },
+  // Email Notifications
+  emailNotifications: {
+    newOrder: true,
+    orderConfirmed: true,
+    orderShipped: true,
+    orderDelivered: true,
+    orderCancelled: true,
+    paymentReceived: true,
+    refundProcessed: true,
+    returnRequested: true,
+    returnApproved: true
+  },
+  // Loyalty Program
+  loyaltyProgram: {
+    enabled: false,
+    pointsPerDollar: 1, // نقطة واحدة لكل دولار
+    pointsPerOrder: 10, // 10 نقاط إضافية لكل طلب
+    redemptionRate: 100, // 100 نقطة = 1 دولار
+    tiers: {
+      bronze: { minSpent: 0, discount: 0 },
+      silver: { minSpent: 500, discount: 5 },
+      gold: { minSpent: 2000, discount: 10 },
+      platinum: { minSpent: 5000, discount: 15 }
+    }
+  },
+  // Returns and Refunds
+  returnPolicy: {
+    enabled: true,
+    returnPeriodDays: 14, // 14 يوم للإرجاع
+    refundMethod: 'original',
+    requireReason: true,
+    autoApprove: false
+  },
   socialLinks: {
     facebook: '',
     twitter: '',
@@ -2316,6 +3185,57 @@ export const DEFAULT_WEBSITE_SETTINGS: WebsiteSettings = {
     tiktok: '',
     snapchat: '',
     telegram: ''
+  },
+  reviewInvite: {
+    enabled: true,
+    discountCode: 'REVIEW10',
+    discountPercentage: 10
+  },
+  // Email Service Settings
+  emailService: {
+    provider: 'resend',
+    apiKey: '',
+    fromEmail: 'noreply@wafarle.com',
+    fromName: 'وافرلي - wafarle',
+    replyTo: 'support@wafarle.com',
+    enabled: false
+  },
+  seo: {
+    metaTitle: 'وافرلي - أفضل عروض الاشتراكات الرقمية',
+    metaDescription: 'وفر على اشتراكاتك المفضلة مع وافرلي. احصل على أفضل العروض لـ Netflix، Spotify، Shahid، والمزيد من الخدمات الرقمية.',
+    metaKeywords: 'اشتراكات رقمية، Netflix، Spotify، Shahid، توفير، عروض، اشتراكات، خدمات رقمية',
+    ogTitle: 'وافرلي - أفضل عروض الاشتراكات الرقمية',
+    ogDescription: 'وفر على اشتراكاتك المفضلة مع وافرلي. احصل على أفضل العروض لـ Netflix، Spotify، Shahid، والمزيد.',
+    ogImage: '/images/og-image.jpg',
+    twitterCard: 'summary_large_image',
+    twitterSite: '@wafarle',
+    twitterCreator: '@wafarle',
+    canonicalUrl: 'https://wafarle.com',
+    robotsIndex: true,
+    robotsFollow: true,
+    structuredData: {
+      organization: {
+        name: 'وافرلي',
+        url: 'https://wafarle.com',
+        logo: 'https://wafarle.com/images/logo.png',
+        description: 'منصة الاشتراكات الرقمية المتميزة',
+        contactPoint: {
+          telephone: '+966593607607',
+          contactType: 'customer service',
+          email: 'support@wafarle.com'
+        },
+        sameAs: []
+      },
+      website: {
+        name: 'وافرلي',
+        url: 'https://wafarle.com',
+        description: 'منصة الاشتراكات الرقمية المتميزة',
+        potentialAction: {
+          target: 'https://wafarle.com/search?q={search_term_string}',
+          queryInput: 'required name=search_term_string'
+        }
+      }
+    }
   }
 };
 
@@ -2515,6 +3435,946 @@ export const subscribeToWebsiteSettings = (callback: (settings: AllSettings) => 
 };
 
 // ===============================
+// Discount Codes Management
+// ===============================
+
+// Get all discount codes
+export const getDiscountCodes = async (): Promise<DiscountCode[]> => {
+  if (!FIREBASE_ENABLED || !db || !discountCodesCollection) {
+    console.log('Firebase not enabled, returning empty discount codes');
+    return [];
+  }
+
+  try {
+    const q = query(discountCodesCollection, orderBy('createdAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...(doc.data() as any),
+      validFrom: (doc.data() as any).validFrom?.toDate() || new Date(),
+      validTo: (doc.data() as any).validTo?.toDate() || new Date(),
+      createdAt: (doc.data() as any).createdAt?.toDate() || new Date(),
+      updatedAt: (doc.data() as any).updatedAt?.toDate() || new Date(),
+    })) as DiscountCode[];
+  } catch (error) {
+    console.error('Error getting discount codes:', error);
+    return [];
+  }
+};
+
+// Get discount code by code string
+export const getDiscountCodeByCode = async (code: string): Promise<DiscountCode | null> => {
+  if (!FIREBASE_ENABLED || !db || !discountCodesCollection) {
+    return null;
+  }
+
+  try {
+    const q = query(discountCodesCollection, where('code', '==', code.toUpperCase().trim()));
+    const querySnapshot = await getDocs(q);
+    
+    if (querySnapshot.empty) {
+      return null;
+    }
+
+    const doc = querySnapshot.docs[0];
+    return {
+      id: doc.id,
+      ...(doc.data() as any),
+      validFrom: (doc.data() as any).validFrom?.toDate() || new Date(),
+      validTo: (doc.data() as any).validTo?.toDate() || new Date(),
+      createdAt: (doc.data() as any).createdAt?.toDate() || new Date(),
+      updatedAt: (doc.data() as any).updatedAt?.toDate() || new Date(),
+    } as DiscountCode;
+  } catch (error) {
+    console.error('Error getting discount code by code:', error);
+    return null;
+  }
+};
+
+// Validate discount code
+export const validateDiscountCode = async (
+  code: string,
+  customerEmail?: string,
+  productId?: string,
+  totalAmount?: number
+): Promise<{ valid: boolean; discountCode?: DiscountCode; error?: string; discountAmount?: number }> => {
+  if (!code || !code.trim()) {
+    return { valid: false, error: 'كود الخصم مطلوب' };
+  }
+
+  let discountCode = await getDiscountCodeByCode(code.trim());
+  
+  // If code doesn't exist in discount codes, check if it's the review invite code from settings
+  if (!discountCode) {
+    try {
+      const settings = await getWebsiteSettings();
+      const reviewInviteCode = settings.website.reviewInvite?.discountCode?.toUpperCase().trim();
+      
+      if (code.trim().toUpperCase() === reviewInviteCode && settings.website.reviewInvite?.enabled) {
+        // Create a temporary discount code object from settings
+        discountCode = {
+          id: 'review-invite-code',
+          code: reviewInviteCode || code.toUpperCase().trim(),
+          type: 'percentage',
+          value: settings.website.reviewInvite.discountPercentage || 10,
+          description: 'كود خصم من دعوة التقييم',
+          isActive: true,
+          validFrom: new Date(),
+          validTo: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+          usageLimit: 0,
+          usedCount: 0,
+          usageLimitPerCustomer: 1,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          createdBy: 'system'
+        };
+      }
+    } catch (error) {
+      console.error('Error checking review invite settings:', error);
+    }
+  }
+  
+  if (!discountCode) {
+    return { valid: false, error: 'كود الخصم غير صحيح' };
+  }
+
+  if (!discountCode.isActive) {
+    return { valid: false, error: 'كود الخصم غير نشط' };
+  }
+
+  const now = new Date();
+  if (discountCode.validFrom && now < discountCode.validFrom) {
+    return { valid: false, error: 'كود الخصم لم يبدأ بعد' };
+  }
+
+  if (discountCode.validTo && now > discountCode.validTo) {
+    return { valid: false, error: 'كود الخصم منتهي الصلاحية' };
+  }
+
+  if (discountCode.usageLimit && discountCode.usedCount >= discountCode.usageLimit) {
+    return { valid: false, error: 'تم استنفاد استخدامات كود الخصم' };
+  }
+
+  if (totalAmount && discountCode.minPurchaseAmount && totalAmount < discountCode.minPurchaseAmount) {
+    return { valid: false, error: `الحد الأدنى للشراء ${discountCode.minPurchaseAmount}` };
+  }
+
+  if (productId) {
+    if (discountCode.excludeProductIds?.includes(productId)) {
+      return { valid: false, error: 'كود الخصم غير صالح لهذا المنتج' };
+    }
+
+    if (discountCode.applicableProductIds && discountCode.applicableProductIds.length > 0) {
+      if (!discountCode.applicableProductIds.includes(productId)) {
+        return { valid: false, error: 'كود الخصم غير صالح لهذا المنتج' };
+      }
+    }
+  }
+
+  // Calculate discount amount
+  let discountAmount = 0;
+  if (totalAmount) {
+    if (discountCode.type === 'percentage') {
+      discountAmount = (totalAmount * discountCode.value) / 100;
+      if (discountCode.maxDiscountAmount && discountAmount > discountCode.maxDiscountAmount) {
+        discountAmount = discountCode.maxDiscountAmount;
+      }
+    } else {
+      discountAmount = discountCode.value;
+      if (discountAmount > totalAmount) {
+        discountAmount = totalAmount;
+      }
+    }
+  }
+
+  return { valid: true, discountCode, discountAmount };
+};
+
+// Add discount code
+export const addDiscountCode = async (discountCode: Omit<DiscountCode, 'id' | 'createdAt' | 'updatedAt' | 'usedCount'>): Promise<string> => {
+  if (!FIREBASE_ENABLED || !db || !discountCodesCollection) {
+    console.log('Firebase not enabled, simulating discount code creation');
+    return Promise.resolve('mock-discount-code-id');
+  }
+
+  try {
+    // Check if code already exists
+    const existingCode = await getDiscountCodeByCode(discountCode.code);
+    if (existingCode) {
+      throw new Error('كود الخصم موجود بالفعل');
+    }
+
+    const docRef = await addDoc(discountCodesCollection, {
+      ...discountCode,
+      code: discountCode.code.toUpperCase().trim(),
+      usedCount: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    
+    console.log('✅ Discount code added successfully:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('Error adding discount code:', error);
+    throw error;
+  }
+};
+
+// Update discount code
+export const updateDiscountCode = async (id: string, updates: Partial<DiscountCode>): Promise<void> => {
+  if (!FIREBASE_ENABLED || !db || !discountCodesCollection) {
+    console.log('Firebase not enabled, simulating discount code update');
+    return Promise.resolve();
+  }
+
+  try {
+    const codeRef = doc(db, 'discountCodes', id);
+    const updateData: any = {
+      ...updates,
+      updatedAt: serverTimestamp(),
+    };
+
+    // If code is being updated, check for duplicates
+    if (updates.code) {
+      const existingCode = await getDiscountCodeByCode(updates.code);
+      if (existingCode && existingCode.id !== id) {
+        throw new Error('كود الخصم موجود بالفعل');
+      }
+      updateData.code = updates.code.toUpperCase().trim();
+    }
+
+    // Remove undefined values
+    Object.keys(updateData).forEach(key => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
+
+    await updateDoc(codeRef, updateData);
+    console.log('✅ Discount code updated successfully:', id);
+  } catch (error) {
+    console.error('Error updating discount code:', error);
+    throw error;
+  }
+};
+
+// Increment usage count for discount code
+export const incrementDiscountCodeUsage = async (code: string, customerEmail?: string): Promise<void> => {
+  if (!FIREBASE_ENABLED || !db || !discountCodesCollection) {
+    return;
+  }
+
+  try {
+    const discountCode = await getDiscountCodeByCode(code);
+    if (discountCode) {
+      await updateDiscountCode(discountCode.id, {
+        usedCount: discountCode.usedCount + 1
+      });
+    }
+  } catch (error) {
+    console.error('Error incrementing discount code usage:', error);
+  }
+};
+
+// Delete discount code
+export const deleteDiscountCode = async (id: string): Promise<void> => {
+  if (!FIREBASE_ENABLED || !db || !discountCodesCollection) {
+    console.log('Firebase not enabled, simulating discount code deletion');
+    return Promise.resolve();
+  }
+
+  try {
+    const codeRef = doc(db, 'discountCodes', id);
+    await deleteDoc(codeRef);
+    console.log('✅ Discount code deleted successfully:', id);
+  } catch (error) {
+    console.error('Error deleting discount code:', error);
+    throw error;
+  }
+};
+
+// Subscribe to discount codes
+export const subscribeToDiscountCodes = (callback: (codes: DiscountCode[]) => void) => {
+  if (!FIREBASE_ENABLED || !db || !discountCodesCollection) {
+    callback([]);
+    return () => {};
+  }
+
+  const q = query(discountCodesCollection, orderBy('createdAt', 'desc'));
+  return onSnapshot(q, (querySnapshot) => {
+    const codes = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...(doc.data() as any),
+      validFrom: (doc.data() as any).validFrom?.toDate() || new Date(),
+      validTo: (doc.data() as any).validTo?.toDate() || new Date(),
+      createdAt: (doc.data() as any).createdAt?.toDate() || new Date(),
+      updatedAt: (doc.data() as any).updatedAt?.toDate() || new Date(),
+    })) as DiscountCode[];
+    callback(codes);
+  });
+};
+
+// ===============================
+// Invoice Management Functions
+// ===============================
+
+// Generate sequential invoice number
+export const generateInvoiceNumber = async (): Promise<string> => {
+  if (!FIREBASE_ENABLED || !db || !ordersCollection) {
+    // Generate mock invoice number based on timestamp
+    const year = new Date().getFullYear();
+    const month = String(new Date().getMonth() + 1).padStart(2, '0');
+    const timestamp = Date.now().toString().slice(-6);
+    return `INV-${year}${month}-${timestamp}`;
+  }
+
+  try {
+    // Get all orders to find the highest invoice number
+    const ordersQuery = query(ordersCollection, where('invoiceNumber', '!=', null));
+    const querySnapshot = await getDocs(ordersQuery);
+    
+    const invoiceNumbers: string[] = [];
+    querySnapshot.docs.forEach(doc => {
+      const invoiceNumber = (doc.data() as any).invoiceNumber;
+      if (invoiceNumber && typeof invoiceNumber === 'string') {
+        invoiceNumbers.push(invoiceNumber);
+      }
+    });
+
+    // Extract numeric part from invoice numbers (format: INV-YYYYMM-NNNNNN)
+    const numericParts = invoiceNumbers
+      .map(inv => {
+        const match = inv.match(/INV-\d{6}-(\d+)/);
+        return match ? parseInt(match[1]) : 0;
+      })
+      .filter(num => num > 0);
+
+    const nextNumber = numericParts.length > 0 
+      ? Math.max(...numericParts) + 1 
+      : 1;
+
+    const year = new Date().getFullYear();
+    const month = String(new Date().getMonth() + 1).padStart(2, '0');
+    const sequentialPart = String(nextNumber).padStart(6, '0');
+
+    return `INV-${year}${month}-${sequentialPart}`;
+  } catch (error) {
+    console.error('Error generating invoice number:', error);
+    // Fallback to timestamp-based number
+    const year = new Date().getFullYear();
+    const month = String(new Date().getMonth() + 1).padStart(2, '0');
+    const timestamp = Date.now().toString().slice(-6);
+    return `INV-${year}${month}-${timestamp}`;
+  }
+};
+
+// Generate invoice PDF
+export const generateInvoicePDF = async (order: Order): Promise<Blob> => {
+  // Dynamic import for client-side only
+  const jsPDF = (await import('jspdf')).default;
+  const pdf = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4'
+  });
+
+  // Set RTL direction
+  pdf.setLanguage('ar');
+  
+  // Get company info from settings (or use defaults)
+  let companyName = 'وافرلي wafarle';
+  let companyEmail = 'support@wafarle.com';
+  let companyPhone = '0593607607';
+  let companyAddress = 'السعودية';
+
+  try {
+    const settings = await getWebsiteSettings();
+    companyName = settings.website.siteName || companyName;
+    companyEmail = settings.website.contactEmail || companyEmail;
+    companyPhone = settings.website.contactPhone || companyPhone;
+  } catch (error) {
+    console.error('Error loading settings for invoice:', error);
+  }
+
+  // Colors
+  const primaryColor = [79, 70, 229]; // #4F46E5
+  const grayColor = [107, 114, 128]; // #6B7280
+
+  // Header
+  pdf.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  pdf.rect(0, 0, 210, 30, 'F');
+  
+  pdf.setTextColor(255, 255, 255);
+  pdf.setFontSize(24);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('فاتورة', 105, 20, { align: 'center' });
+
+  // Company Info (Right side)
+  pdf.setTextColor(0, 0, 0);
+  pdf.setFontSize(16);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text(companyName, 190, 45, { align: 'right' });
+  
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'normal');
+  pdf.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+  pdf.text(`البريد: ${companyEmail}`, 190, 52, { align: 'right' });
+  pdf.text(`الهاتف: ${companyPhone}`, 190, 58, { align: 'right' });
+  if (companyAddress) {
+    pdf.text(`العنوان: ${companyAddress}`, 190, 64, { align: 'right' });
+  }
+
+  // Invoice Info (Left side)
+  pdf.setFontSize(12);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setTextColor(0, 0, 0);
+  pdf.text('معلومات الفاتورة', 20, 45);
+  
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text(`رقم الفاتورة: ${order.invoiceNumber || 'غير محدد'}`, 20, 52);
+  pdf.text(`تاريخ الفاتورة: ${new Intl.DateTimeFormat('ar-SA', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }).format(order.invoiceGeneratedAt || order.createdAt)}`, 20, 58);
+  pdf.text(`رقم الطلب: ${order.id}`, 20, 64);
+
+  // Customer Info
+  let yPos = 75;
+  pdf.setFontSize(12);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('معلومات العميل', 20, yPos);
+  
+  yPos += 7;
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text(`الاسم: ${order.customerName}`, 20, yPos);
+  yPos += 6;
+  pdf.text(`البريد الإلكتروني: ${order.customerEmail}`, 20, yPos);
+  yPos += 6;
+  pdf.text(`الهاتف: ${order.customerPhone}`, 20, yPos);
+
+  // Shipping address if exists
+  if (order.shippingAddress) {
+    yPos += 6;
+    pdf.text(`عنوان الشحن: ${order.shippingAddress}`, 20, yPos);
+  }
+
+  // Items Table
+  yPos += 15;
+  pdf.setFontSize(12);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('تفاصيل الطلب', 20, yPos);
+
+  yPos += 7;
+  // Table Header
+  pdf.setFillColor(240, 240, 240);
+  pdf.rect(20, yPos - 5, 170, 8, 'F');
+  
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text('المنتج', 25, yPos);
+  pdf.text('الكمية', 120, yPos);
+  pdf.text('السعر', 145, yPos);
+  pdf.text('الإجمالي', 180, yPos);
+
+  // Table Row
+  yPos += 8;
+  pdf.setFont('helvetica', 'normal');
+  pdf.text(order.productName, 25, yPos);
+  pdf.text(String(order.quantity || 1), 120, yPos);
+  pdf.text(String(order.productPrice || 0), 145, yPos);
+  pdf.text(String(order.totalAmount || 0), 180, yPos);
+
+  // Discount info if exists
+  if (order.discountCode || order.discountAmount) {
+    yPos += 7;
+    pdf.setFontSize(9);
+    pdf.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+    if (order.originalAmount) {
+      pdf.text(`المبلغ الأصلي: ${order.originalAmount}`, 150, yPos);
+    }
+    if (order.discountCode) {
+      yPos += 5;
+      pdf.text(`كود الخصم: ${order.discountCode}`, 150, yPos);
+    }
+    if (order.discountAmount) {
+      yPos += 5;
+      pdf.text(`الخصم: -${order.discountAmount}`, 150, yPos);
+    }
+    pdf.setTextColor(0, 0, 0);
+  }
+
+  // Total
+  yPos += 12;
+  pdf.setLineWidth(0.5);
+  pdf.line(20, yPos, 190, yPos);
+  
+  yPos += 8;
+  pdf.setFontSize(14);
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  pdf.setTextColor(255, 255, 255);
+  pdf.rect(120, yPos - 6, 70, 10, 'F');
+  
+  pdf.text('المبلغ الإجمالي', 135, yPos);
+  pdf.text(String(order.totalAmount || 0), 185, yPos);
+
+  // Payment Status
+  yPos += 15;
+  pdf.setTextColor(0, 0, 0);
+  pdf.setFontSize(10);
+  pdf.setFont('helvetica', 'normal');
+  const paymentStatus = order.paymentStatus === 'paid' ? 'مدفوع' : 'غير مدفوع';
+  const statusColor = order.paymentStatus === 'paid' ? [34, 197, 94] : [239, 68, 68];
+  pdf.setTextColor(statusColor[0], statusColor[1], statusColor[2]);
+  pdf.setFont('helvetica', 'bold');
+  pdf.text(`حالة الدفع: ${paymentStatus}`, 20, yPos);
+  
+  // Order Status
+  const statusLabels: Record<string, string> = {
+    'pending': 'قيد الانتظار',
+    'confirmed': 'مؤكد',
+    'cancelled': 'ملغي',
+    'completed': 'مكتمل'
+  };
+  const orderStatus = statusLabels[order.status] || order.status;
+  pdf.text(`حالة الطلب: ${orderStatus}`, 140, yPos);
+
+  // Footer
+  yPos = 280;
+  pdf.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+  pdf.setFontSize(8);
+  pdf.setFont('helvetica', 'normal');
+  pdf.text('شكراً لك على ثقتك بنا!', 105, yPos, { align: 'center' });
+  yPos += 5;
+  pdf.text('للاستفسارات: ' + companyEmail, 105, yPos, { align: 'center' });
+
+  // Generate blob
+  return pdf.output('blob');
+};
+
+// Generate and save invoice for order
+export const generateOrderInvoice = async (orderId: string): Promise<{
+  invoiceNumber: string;
+  pdfBlob: Blob;
+}> => {
+  if (!FIREBASE_ENABLED || !db || !ordersCollection) {
+    throw new Error('Firebase not enabled');
+  }
+
+  try {
+    // Get order
+    const orderRef = doc(db, 'orders', orderId);
+    const orderDoc = await import('firebase/firestore').then(({ getDoc }) => getDoc(orderRef));
+    
+    if (!orderDoc.exists()) {
+      throw new Error('Order not found');
+    }
+
+    const orderData = orderDoc.data() as any;
+    const order: Order = {
+      id: orderDoc.id,
+      ...orderData,
+      createdAt: orderData.createdAt?.toDate() || new Date(),
+      confirmedAt: orderData.confirmedAt?.toDate(),
+      deliveredAt: orderData.deliveredAt?.toDate(),
+      shippedAt: orderData.shippedAt?.toDate(),
+      invoiceGeneratedAt: orderData.invoiceGeneratedAt?.toDate(),
+      invoiceSentAt: orderData.invoiceSentAt?.toDate(),
+    };
+
+    // Generate invoice number if not exists
+    let invoiceNumber = order.invoiceNumber;
+    if (!invoiceNumber) {
+      invoiceNumber = await generateInvoiceNumber();
+    }
+
+    // Generate PDF
+    const pdfBlob = await generateInvoicePDF({
+      ...order,
+      invoiceNumber
+    });
+
+    // Update order with invoice info
+    await updateDoc(orderRef, {
+      invoiceNumber,
+      invoiceGeneratedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    console.log('✅ Invoice generated successfully:', invoiceNumber);
+
+    return {
+      invoiceNumber,
+      pdfBlob
+    };
+  } catch (error) {
+    console.error('Error generating invoice:', error);
+    throw error;
+  }
+};
+
+// Send invoice via email (simulated - in production, use email service)
+export const sendInvoiceEmail = async (orderId: string): Promise<void> => {
+  try {
+    const { invoiceNumber, pdfBlob } = await generateOrderInvoice(orderId);
+    
+    // Get order to get customer email
+    const orderRef = doc(db, 'orders', orderId);
+    const orderDoc = await import('firebase/firestore').then(({ getDoc }) => getDoc(orderRef));
+    
+    if (!orderDoc.exists()) {
+      throw new Error('Order not found');
+    }
+
+    const orderData = orderDoc.data() as any;
+    const customerEmail = orderData.customerEmail;
+    const customerName = orderData.customerName || 'عميلنا العزيز';
+
+    // Get email service settings
+    const settings = await getWebsiteSettings();
+    const emailService = settings.website.emailService || {
+      provider: 'none' as const,
+      apiKey: '',
+      fromEmail: settings.website.contactEmail,
+      fromName: settings.website.siteName,
+      replyTo: settings.website.contactEmail,
+      enabled: false
+    };
+
+    // Check if email service is enabled
+    if (!emailService.enabled || !emailService.apiKey || emailService.apiKey.trim() === '') {
+      console.log('📧 Email service not configured - simulating invoice email:', {
+        to: customerEmail,
+        invoiceNumber,
+      });
+      // Update order anyway
+      await updateDoc(orderRef, {
+        invoiceSentAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      return;
+    }
+
+    // Convert PDF blob to base64 for email attachment
+    const base64Pdf = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = (reader.result as string).split(',')[1];
+        resolve(base64String);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(pdfBlob);
+    });
+
+    // Import email template renderer
+    const { getInvoiceTemplate } = await import('./email-templates');
+    
+    // Render email template
+    const html = getInvoiceTemplate({
+      companyName: settings.website.siteName,
+      customerName,
+      invoiceNumber,
+      orderNumber: orderId,
+      orderAmount: orderData.totalAmount || 0,
+      currency: settings.website.currency || 'SAR',
+      invoiceLink: `${typeof window !== 'undefined' ? window.location.origin : ''}/customer/dashboard`,
+    });
+
+    // Send email via API with PDF attachment
+    const response = await fetch('/api/email/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: customerEmail,
+        subject: `فاتورة رقم ${invoiceNumber}`,
+        html,
+        from: `${emailService.fromName || settings.website.siteName} <${emailService.fromEmail || settings.website.contactEmail}>`,
+        replyTo: emailService.replyTo || settings.website.contactEmail,
+        attachments: [
+          {
+            filename: `invoice-${invoiceNumber}.pdf`,
+            content: base64Pdf,
+          },
+        ],
+        apiKey: emailService.apiKey,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Failed to send invoice email:', errorData);
+      throw new Error(errorData.error || 'Failed to send invoice email');
+    }
+
+    // Update order to mark invoice as sent
+    await updateDoc(orderRef, {
+      invoiceSentAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+
+    const result = await response.json();
+    console.log('✅ Invoice email sent:', {
+      to: customerEmail,
+      invoiceNumber,
+      messageId: result.messageId,
+      simulated: result.simulated || false,
+    });
+  } catch (error) {
+    console.error('Error sending invoice email:', error);
+    throw error;
+  }
+};
+
+// Download invoice PDF
+export const downloadInvoicePDF = async (orderId: string): Promise<void> => {
+  try {
+    const { invoiceNumber, pdfBlob } = await generateOrderInvoice(orderId);
+    
+    // Create download link
+    const url = URL.createObjectURL(pdfBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `invoice-${invoiceNumber}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    console.log('✅ Invoice downloaded:', invoiceNumber);
+  } catch (error) {
+    console.error('Error downloading invoice:', error);
+    throw error;
+  }
+};
+
+// ===============================
+// Email Notification Functions
+// ===============================
+
+// Send email notification
+export const sendEmailNotification = async (
+  to: string,
+  subject: string,
+  template: string,
+  data: Record<string, any>
+): Promise<void> => {
+  try {
+    // Get email notification settings
+    const settings = await getWebsiteSettings();
+    const emailNotifications = settings.website.emailNotifications || {};
+    const emailService = settings.website.emailService || {
+      provider: 'none' as const,
+      apiKey: '',
+      fromEmail: settings.website.contactEmail,
+      fromName: settings.website.siteName,
+      replyTo: settings.website.contactEmail,
+      enabled: false
+    };
+    
+    // Check if notification type is enabled
+    const notificationType = template as keyof typeof emailNotifications;
+    if (emailNotifications[notificationType] === false) {
+      console.log(`📧 Email notification ${notificationType} is disabled, skipping...`);
+      return;
+    }
+
+    // Check if email service is enabled
+    if (!emailService.enabled || !emailService.apiKey || emailService.apiKey.trim() === '') {
+      console.log('📧 Email service not configured - simulating email:', {
+        to,
+        subject,
+        template,
+      });
+      return;
+    }
+
+    // Import email template renderer
+    const { renderEmailTemplate } = await import('./email-templates');
+    
+    // Render email template
+    const html = renderEmailTemplate(template, {
+      ...data,
+      companyName: settings.website.siteName,
+    });
+
+    // Send email via API
+    const response = await fetch('/api/email/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to,
+        subject,
+        html,
+        from: `${emailService.fromName || settings.website.siteName} <${emailService.fromEmail || settings.website.contactEmail}>`,
+        replyTo: emailService.replyTo || settings.website.contactEmail,
+        apiKey: emailService.apiKey,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to send email');
+    }
+
+    const result = await response.json();
+    console.log('✅ Email notification sent:', {
+      to,
+      subject,
+      messageId: result.messageId,
+      simulated: result.simulated || false,
+    });
+  } catch (error) {
+    console.error('Error sending email notification:', error);
+    // Don't throw error - email sending failures shouldn't break the flow
+    // Just log it and continue
+  }
+};
+
+// Note: renderEmailTemplate is now in email-templates.ts
+// This function is kept for backward compatibility
+export const renderEmailTemplate = async (template: string, data: Record<string, any>): Promise<string> => {
+  const { renderEmailTemplate: renderTemplate } = await import('./email-templates');
+  return renderTemplate(template, data);
+};
+
+// ===============================
+// Dashboard Statistics Functions
+// ===============================
+
+// Get dashboard statistics
+export const getDashboardStats = async () => {
+  try {
+    const [orders, customers, products, blogPosts] = await Promise.all([
+      getOrders(),
+      getCustomers(),
+      getProducts(),
+      getBlogPosts()
+    ]);
+
+    // Calculate today's sales
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayOrders = orders.filter(order => 
+      order.createdAt >= today && order.status === 'confirmed'
+    );
+    const todaySales = todayOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+
+    // Calculate new orders today
+    const newOrdersToday = orders.filter(order => order.createdAt >= today).length;
+
+    // Calculate active customers (customers with orders in last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const activeCustomers = customers.filter(customer => 
+      customer.lastOrderDate && customer.lastOrderDate >= thirtyDaysAgo
+    ).length;
+
+    // Calculate total revenue
+    const totalRevenue = orders
+      .filter(order => order.status === 'confirmed')
+      .reduce((sum, order) => sum + order.totalAmount, 0);
+
+    // Calculate average order value
+    const confirmedOrders = orders.filter(order => order.status === 'confirmed');
+    const averageOrderValue = confirmedOrders.length > 0 
+      ? totalRevenue / confirmedOrders.length 
+      : 0;
+
+    // Get recent activity
+    const recentOrders = orders
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, 5);
+
+    // Get recent blog posts
+    const recentBlogPosts = blogPosts
+      .filter(post => post.status === 'published')
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .slice(0, 3);
+
+    return {
+      todaySales,
+      newOrdersToday,
+      activeCustomers,
+      totalCustomers: customers.length,
+      totalProducts: products.length,
+      totalOrders: orders.length,
+      totalRevenue,
+      averageOrderValue,
+      recentOrders,
+      recentBlogPosts,
+      totalBlogPosts: blogPosts.length,
+      publishedBlogPosts: blogPosts.filter(post => post.status === 'published').length
+    };
+  } catch (error) {
+    console.error('Error getting dashboard stats:', error);
+    return {
+      todaySales: 0,
+      newOrdersToday: 0,
+      activeCustomers: 0,
+      totalCustomers: 0,
+      totalProducts: 0,
+      totalOrders: 0,
+      totalRevenue: 0,
+      averageOrderValue: 0,
+      recentOrders: [],
+      recentBlogPosts: [],
+      totalBlogPosts: 0,
+      publishedBlogPosts: 0
+    };
+  }
+};
+
+// Get orders by date range
+export const getOrdersByDateRange = async (startDate: Date, endDate: Date) => {
+  const orders = await getOrders();
+  return orders.filter(order => 
+    order.createdAt >= startDate && order.createdAt <= endDate
+  );
+};
+
+// Get revenue by date range
+export const getRevenueByDateRange = async (startDate: Date, endDate: Date) => {
+  const orders = await getOrdersByDateRange(startDate, endDate);
+  return orders
+    .filter(order => order.status === 'confirmed')
+    .reduce((sum, order) => sum + order.totalAmount, 0);
+};
+
+// Get top selling products
+export const getTopSellingProducts = async (limit: number = 5) => {
+  const orders = await getOrders();
+  const productSales: { [key: string]: { product: Product; count: number; revenue: number } } = {};
+  
+  orders.forEach(order => {
+    if (!productSales[order.productId]) {
+      const product = mockProducts.find(p => p.id === order.productId);
+      if (product) {
+        productSales[order.productId] = {
+          product,
+          count: 0,
+          revenue: 0
+        };
+      }
+    }
+    if (productSales[order.productId]) {
+      productSales[order.productId].count += order.quantity;
+      productSales[order.productId].revenue += order.productPrice * order.quantity;
+    }
+  });
+
+  return Object.values(productSales)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+};
+
+// ===============================
 // Blog System Management
 // ===============================
 
@@ -2570,186 +4430,15 @@ const mockCategories: BlogCategory[] = [
 ];
 
 // Force refresh of mockBlogPosts to ensure it loads properly
-let mockBlogPosts: BlogPost[] = [];
+// No more mock data - all data comes from Firebase
 
-// Save to localStorage
-const saveMockBlogPostsToStorage = (posts: BlogPost[]) => {
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem('mockBlogPosts', JSON.stringify(posts));
-      console.log('💾 [STORAGE] Blog posts saved to localStorage');
-    } catch (error) {
-      console.warn('Error saving blog posts to localStorage:', error);
-    }
-  }
-};
-
-// Load from localStorage if available
-const loadMockBlogPostsFromStorage = (): BlogPost[] => {
-  if (typeof window !== 'undefined') {
-    try {
-      const stored = localStorage.getItem('mockBlogPosts');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        // Convert date strings back to Date objects
-        return parsed.map((post: any) => ({
-          ...post,
-          createdAt: new Date(post.createdAt),
-          updatedAt: new Date(post.updatedAt),
-          publishedAt: post.publishedAt ? new Date(post.publishedAt) : undefined,
-          scheduledAt: post.scheduledAt ? new Date(post.scheduledAt) : undefined,
-        }));
-      }
-    } catch (error) {
-      console.warn('Error loading blog posts from localStorage:', error);
-    }
-  }
-  return [];
-};
-
-// Initialize mock data immediately
-function initializeMockBlogPosts() {
-  // First try to load from localStorage
-  const storedPosts = loadMockBlogPostsFromStorage();
-  
-  if (storedPosts && storedPosts.length > 0) {
-    mockBlogPosts = storedPosts;
-    console.log('🔄 [INIT] Loaded', storedPosts.length, 'blog posts from localStorage');
-    console.log('🔄 [INIT] Available IDs:', mockBlogPosts.map(p => p.id));
-    return;
-  }
-  
-  // If no stored posts, create default ones
-  // If no stored posts, create default ones
-  mockBlogPosts = [
-    {
-      id: 'qRBK8o4e9wPR9wwzawOi', // Real Firebase-like ID for testing
-      title: 'مستقبل الذكاء الاصطناعي في الأعمال التجارية',
-      slug: 'future-of-ai-in-business',
-      excerpt: 'كيف يمكن للذكاء الاصطناعي أن يغير وجه الأعمال التجارية في السنوات القادمة ويخلق فرص جديدة للنمو والابتكار.',
-    content: `<h2>مقدمة</h2>
-<p>يشهد عالم الأعمال اليوم تحولاً جذرياً مع تطور تقنيات الذكاء الاصطناعي...</p>
-<h3>التطبيقات الحالية للذكاء الاصطناعي</h3>
-<ul>
-<li>خدمة العملاء الآلية</li>
-<li>تحليل البيانات والتنبؤات</li>
-<li>التسويق الشخصي</li>
-</ul>`,
-    featuredImage: '/api/placeholder/800/400',
-    images: ['/api/placeholder/800/400', '/api/placeholder/600/300', '/api/placeholder/700/350'],
-    categoryId: '1',
-    tags: ['ai', 'business', 'technology'],
-    authorId: 'admin',
-    authorName: 'فريق التحرير',
-    status: 'published',
-    visibility: 'public',
-    publishedAt: new Date('2024-01-20'),
-    createdAt: new Date('2024-01-18'),
-    updatedAt: new Date('2024-01-20'),
-    viewCount: 245,
-    likesCount: 32,
-    commentsCount: 8,
-    seoTitle: 'مستقبل الذكاء الاصطناعي في الأعمال التجارية - دليل شامل',
-    seoDescription: 'اكتشف كيف سيغير الذكاء الاصطناعي الأعمال التجارية في المستقبل وما هي الفرص والتحديات المتوقعة.',
-    seoKeywords: ['ذكاء اصطناعي', 'أعمال', 'تقنية', 'مستقبل'],
-    readingTime: 8,
-    language: 'ar',
-    featured: true
-  },
-  {
-    id: 'xM3nP9fG2hR5kL8sT4vW', // Real Firebase-like ID for testing
-    title: '10 نصائح لبدء مشروعك التقني الناجح',
-    slug: '10-tips-successful-tech-startup',
-    excerpt: 'دليل عملي للمبتدئين في عالم ريادة الأعمال التقنية مع نصائح مجربة من خبراء في المجال.',
-    content: `<h2>البداية الصحيحة لمشروعك التقني</h2>
-<p>بدء مشروع تقني ناجح يتطلب التخطيط والإعداد المناسب...</p>
-<h3>النصائح الأساسية</h3>
-<ol>
-<li>ابحث عن مشكلة حقيقية لحلها</li>
-<li>ادرس السوق والمنافسين</li>
-<li>ابن فريق متكامل</li>
-</ol>`,
-    featuredImage: '/api/placeholder/800/400',
-    images: ['/api/placeholder/800/400', '/api/placeholder/500/250'],
-    categoryId: '2',
-    tags: ['startup', 'entrepreneurship', 'tips'],
-    authorId: 'admin',
-    authorName: 'أحمد محمد',
-    status: 'published',
-    visibility: 'public',
-    publishedAt: new Date('2024-01-18'),
-    createdAt: new Date('2024-01-15'),
-    updatedAt: new Date('2024-01-18'),
-    viewCount: 189,
-    likesCount: 27,
-    commentsCount: 5,
-    seoTitle: '10 نصائح لبدء مشروعك التقني الناجح - دليل ريادة الأعمال',
-    seoDescription: 'تعلم كيفية بدء مشروعك التقني بنجاح مع 10 نصائح عملية من خبراء ريادة الأعمال.',
-    seoKeywords: ['startup', 'entrepreneurship', 'tips', 'business'],
-    readingTime: 6,
-    language: 'ar',
-    featured: false
-  },
-  {
-    id: 'A7dK9mN4pQ8rS2vY6zC1', // Real Firebase-like ID for testing  
-    title: 'دليل التسويق الرقمي للمبتدئين',
-    slug: 'digital-marketing-guide-beginners',
-    excerpt: 'تعلم أساسيات التسويق الرقمي خطوة بخطوة مع استراتيجيات عملية لتنمية أعمالك عبر الإنترنت.',
-    content: `<h2>ما هو التسويق الرقمي؟</h2>
-<p>التسويق الرقمي هو استخدام القنوات الرقمية للترويج للمنتجات والخدمات...</p>
-<h3>أهم القنوات</h3>
-<ul>
-<li>وسائل التواصل الاجتماعي</li>
-<li>البريد الإلكتروني</li>
-<li>محركات البحث</li>
-</ul>`,
-    featuredImage: '/api/placeholder/800/400',
-    images: ['/api/placeholder/800/400', '/api/placeholder/400/200'],
-    categoryId: '1',
-    tags: ['marketing', 'digital', 'social-media'],
-    authorId: 'admin',
-    authorName: 'سارة أحمد',
-    status: 'published',
-    visibility: 'public',
-    publishedAt: new Date('2024-01-16'),
-    createdAt: new Date('2024-01-14'),
-    updatedAt: new Date('2024-01-16'),
-    viewCount: 156,
-    likesCount: 19,
-    commentsCount: 3,
-    seoTitle: 'دليل التسويق الرقمي للمبتدئين - استراتيجيات التسويق الإلكتروني',
-    seoDescription: 'دليل شامل للمبتدئين في التسويق الرقمي مع أفضل الاستراتيجيات والأدوات المجانية.',
-    seoKeywords: ['تسويق رقمي', 'تسويق إلكتروني', 'وسائل التواصل الاجتماعي'],
-    readingTime: 5,
-    language: 'ar',
-    featured: false
-  }
-];
-  console.log('🔧 [INIT] Mock blog posts initialized:', mockBlogPosts.length, 'posts');
-  console.log('🔧 [INIT] Available IDs:', mockBlogPosts.map(p => p.id));
-  
-  // Save initial posts to localStorage
-  saveMockBlogPostsToStorage(mockBlogPosts);
-}
-
-// Initialize immediately - force execution
-console.log('🔧 [STARTUP] Forcing mock blog posts initialization...');
-initializeMockBlogPosts();
-console.log('🔧 [STARTUP] Initialization complete. Posts count:', mockBlogPosts.length);
-
-const mockBlogTags: BlogTag[] = [
-  { id: '1', name: 'ذكاء اصطناعي', slug: 'ai', color: '#3B82F6', postsCount: 3, createdAt: new Date() },
-  { id: '2', name: 'ريادة الأعمال', slug: 'entrepreneurship', color: '#10B981', postsCount: 5, createdAt: new Date() },
-  { id: '3', name: 'تسويق رقمي', slug: 'digital-marketing', color: '#F59E0B', postsCount: 4, createdAt: new Date() },
-  { id: '4', name: 'برمجة', slug: 'programming', color: '#8B5CF6', postsCount: 6, createdAt: new Date() },
-  { id: '5', name: 'تطبيقات موبايل', slug: 'mobile-apps', color: '#EF4444', postsCount: 2, createdAt: new Date() }
-];
+// All blog tags come from Firebase
 
 // Blog Categories Functions
 export const getBlogCategories = async (): Promise<BlogCategory[]> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, using mock categories');
-    return mockCategories;
+    console.log('Firebase not enabled, returning empty array');
+    return [];
   }
 
   try {
@@ -2768,7 +4457,7 @@ export const getBlogCategories = async (): Promise<BlogCategory[]> => {
     })) as BlogCategory[];
   } catch (error) {
     console.error('Error getting blog categories:', error);
-    return mockCategories;
+    return [];
   }
 };
 
@@ -2796,21 +4485,8 @@ export const addBlogCategory = async (categoryData: Omit<BlogCategory, 'id' | 'c
 // Blog Posts Functions
 export const getBlogPosts = async (limit?: number, category?: string, status?: string): Promise<BlogPost[]> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, using mock posts. Total posts:', mockBlogPosts.length);
-    console.log('Mock posts summary:', mockBlogPosts.map(p => ({ id: p.id, title: p.title, status: p.status })));
-    let filteredPosts = [...mockBlogPosts];
-    
-    if (status) {
-      filteredPosts = filteredPosts.filter(post => post.status === status);
-    }
-    if (category) {
-      filteredPosts = filteredPosts.filter(post => post.categoryId === category);
-    }
-    if (limit) {
-      filteredPosts = filteredPosts.slice(0, limit);
-    }
-    
-    return filteredPosts;
+    console.log('Firebase not enabled, returning empty array');
+    return [];
   }
 
   try {
@@ -2838,7 +4514,46 @@ export const getBlogPosts = async (limit?: number, category?: string, status?: s
     })) as BlogPost[];
   } catch (error) {
     console.error('Error getting blog posts:', error);
-    return mockBlogPosts;
+    return [];
+  }
+};
+
+export const getBlogPostById = async (id: string): Promise<BlogPost | null> => {
+  console.log('🚀 [GET_BLOG_POST_BY_ID] Called with ID:', id);
+  
+  if (!FIREBASE_ENABLED || !db) {
+    console.log('🔍 [GET_BLOG_POST_BY_ID] Firebase not enabled, returning null');
+    return null;
+  }
+
+  try {
+    const { doc, getDoc } = await import('firebase/firestore');
+    const docRef = doc(db, 'blogPosts', id);
+    const docSnap = await getDoc(docRef);
+    
+    if (!docSnap.exists()) {
+      console.log('🔍 [GET_BLOG_POST_BY_ID] No document found for ID:', id);
+      return null;
+    }
+    
+    const docData = docSnap.data();
+    console.log('📄 [GET_BLOG_POST_BY_ID] Found document:', {
+      id: docSnap.id,
+      slug: docData.slug,
+      title: docData.title
+    });
+    
+    return {
+      id: docSnap.id,
+      ...docData,
+      createdAt: docData.createdAt?.toDate() || new Date(),
+      updatedAt: docData.updatedAt?.toDate() || new Date(),
+      publishedAt: docData.publishedAt?.toDate() || null,
+      scheduledAt: docData.scheduledAt?.toDate() || null
+    } as BlogPost;
+  } catch (error) {
+    console.error('Error getting blog post by ID:', error);
+    return null;
   }
 };
 
@@ -2846,28 +4561,8 @@ export const getBlogPost = async (slugOrId: string): Promise<BlogPost | null> =>
   console.log('🚀 [GET_BLOG_POST] Called with ID/slug:', slugOrId);
   
   if (!FIREBASE_ENABLED || !db) {
-    console.log('🔍 [GET_BLOG_POST] Using mock data, searching for:', slugOrId);
-    
-    // Ensure mock data is initialized
-    initializeMockBlogPosts();
-    
-    console.log('📋 [GET_BLOG_POST] Available posts:', mockBlogPosts.map(p => ({ id: p.id, title: p.title })));
-    
-    // Search by ID first, then by slug
-    let foundPost = mockBlogPosts.find(post => post.id === slugOrId);
-    if (!foundPost) {
-      foundPost = mockBlogPosts.find(post => post.slug === slugOrId);
-      console.log('🔄 [GET_BLOG_POST] ID not found, tried slug search...');
-    }
-    
-    if (foundPost) {
-      console.log('✅ [GET_BLOG_POST] SUCCESS: Found post -', foundPost.title);
-      return foundPost;
-    } else {
-      console.log('❌ [GET_BLOG_POST] FAILED: Post not found');
-      console.log('❌ [GET_BLOG_POST] Available IDs:', mockBlogPosts.map(p => p.id));
-      return null;
-    }
+    console.log('🔍 [GET_BLOG_POST] Firebase not enabled, returning null');
+    return null;
   }
 
   try {
@@ -2876,17 +4571,25 @@ export const getBlogPost = async (slugOrId: string): Promise<BlogPost | null> =>
     const snapshot = await getDocs(postQuery);
     
     if (snapshot.empty) {
+      console.log('🔍 [GET_BLOG_POST] No document found for slug:', slugOrId);
       return null;
     }
     
     const doc = snapshot.docs[0];
+    const docData = doc.data();
+    console.log('📄 [GET_BLOG_POST] Found document:', {
+      id: doc.id,
+      slug: docData.slug,
+      title: docData.title
+    });
+    
     return {
       id: doc.id,
-      ...(doc.data() as any),
-      createdAt: (doc.data() as any).createdAt?.toDate() || new Date(),
-      updatedAt: (doc.data() as any).updatedAt?.toDate() || new Date(),
-      publishedAt: (doc.data() as any).publishedAt?.toDate() || null,
-      scheduledAt: (doc.data() as any).scheduledAt?.toDate() || null
+      ...docData,
+      createdAt: docData.createdAt?.toDate() || new Date(),
+      updatedAt: docData.updatedAt?.toDate() || new Date(),
+      publishedAt: docData.publishedAt?.toDate() || null,
+      scheduledAt: docData.scheduledAt?.toDate() || null
     } as BlogPost;
   } catch (error) {
     console.error('Error getting blog post:', error);
@@ -2896,22 +4599,7 @@ export const getBlogPost = async (slugOrId: string): Promise<BlogPost | null> =>
 
 export const addBlogPost = async (postData: Omit<BlogPost, 'id' | 'createdAt' | 'updatedAt' | 'viewCount' | 'likesCount' | 'commentsCount'>): Promise<string> => {
   if (!FIREBASE_ENABLED || !db) {
-    // Mock implementation for development - add to mockBlogPosts array
-    const newId = generateFirebaseId(); // Generate Firebase-like ID
-    const newPost: BlogPost = {
-      ...postData,
-      id: newId,
-      viewCount: 0,
-      likesCount: 0,
-      commentsCount: 0,
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
-    mockBlogPosts.unshift(newPost);
-    saveMockBlogPostsToStorage(mockBlogPosts); // Save to localStorage
-    console.log('✅ Mock blog post created successfully:', newId, newPost.title);
-    console.log('💾 New blog post saved to storage');
-    return newId;
+    throw new Error('Firebase is not enabled');
   }
 
   try {
@@ -2933,65 +4621,48 @@ export const addBlogPost = async (postData: Omit<BlogPost, 'id' | 'createdAt' | 
 
 export const updateBlogPost = async (id: string, postData: Partial<BlogPost>): Promise<void> => {
   console.log('📝 [UPDATE_BLOG_POST] Called with ID:', id);
-  console.log('📝 [UPDATE_BLOG_POST] FIREBASE_ENABLED:', FIREBASE_ENABLED);
-  console.log('📝 [UPDATE_BLOG_POST] db exists:', !!db);
   
   if (!FIREBASE_ENABLED || !db) {
-    console.log('📝 [UPDATE_BLOG_POST] Using mock data for update');
-    console.log('📝 [UPDATE_BLOG_POST] Updating mock blog post ID:', id);
-    console.log('📝 [UPDATE_BLOG_POST] Update data:', postData);
-    
-    // Force reinitialize to ensure we have the latest data
-    initializeMockBlogPosts();
-    
-    const index = mockBlogPosts.findIndex(post => post.id === id);
-    console.log('📝 [UPDATE_BLOG_POST] Found post at index:', index);
-    
-    if (index !== -1) {
-      const oldPost = mockBlogPosts[index];
-      mockBlogPosts[index] = { 
-        ...oldPost, 
-        ...postData,
-        updatedAt: new Date()
-      };
-      saveMockBlogPostsToStorage(mockBlogPosts); // Save to localStorage
-      console.log('✅ [UPDATE_BLOG_POST] Mock blog post updated successfully');
-      console.log('✅ [UPDATE_BLOG_POST] Updated post:', mockBlogPosts[index].title);
-      console.log('💾 Updated post saved to storage');
-      return;
-    } else {
-      console.warn('❌ [UPDATE_BLOG_POST] Mock blog post not found for ID:', id);
-      console.warn('❌ [UPDATE_BLOG_POST] Available IDs:', mockBlogPosts.map(p => p.id));
-      throw new Error(`Post with ID ${id} not found in mock data`);
-    }
+    throw new Error('Firebase is not enabled');
   }
 
   try {
-    const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
-    await updateDoc(doc(db, 'blogPosts', id), {
+    const { doc, getDoc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+    const docRef = doc(db, 'blogPosts', id);
+    const docSnap = await getDoc(docRef);
+    
+    if (!docSnap.exists()) {
+      console.error(`❌ [UPDATE_BLOG_POST] Blog post with ID ${id} does not exist`);
+      throw new Error(`Blog post with ID ${id} does not exist`);
+    }
+    
+    console.log('✅ [UPDATE_BLOG_POST] Document exists, updating...');
+    console.log('📝 [UPDATE_BLOG_POST] Post data to update:', {
+      seoTitle: postData.seoTitle,
+      seoDescription: postData.seoDescription,
+      seoKeywords: postData.seoKeywords,
+      seoImage: postData.seoImage,
+      seoAlt: postData.seoAlt,
+      canonicalUrl: postData.canonicalUrl,
+      robotsIndex: postData.robotsIndex,
+      robotsFollow: postData.robotsFollow,
+      seo: postData.seo
+    });
+    
+    await updateDoc(docRef, {
       ...postData,
       updatedAt: serverTimestamp()
     });
+    console.log('✅ [UPDATE_BLOG_POST] Successfully updated blog post');
   } catch (error) {
-    console.error('Error updating blog post:', error);
+    console.error('❌ [UPDATE_BLOG_POST] Error updating blog post:', error);
     throw error;
   }
 };
 
 export const deleteBlogPost = async (id: string): Promise<void> => {
   if (!FIREBASE_ENABLED || !db) {
-    // Mock implementation for development - remove from mockBlogPosts array
-    console.log('Firebase not enabled, deleting mock blog post:', id);
-    const index = mockBlogPosts.findIndex(post => post.id === id);
-    if (index !== -1) {
-      const deletedPost = mockBlogPosts.splice(index, 1)[0];
-      saveMockBlogPostsToStorage(mockBlogPosts); // Save to localStorage
-      console.log('✅ Mock blog post deleted successfully:', deletedPost.title);
-      console.log('💾 Deletion saved to storage');
-    } else {
-      console.warn('Mock blog post not found for ID:', id);
-    }
-    return;
+    throw new Error('Firebase is not enabled');
   }
 
   try {
@@ -3016,8 +4687,8 @@ function generateFirebaseId(): string {
 
 export const getBlogTags = async (): Promise<BlogTag[]> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, using mock tags');
-    return mockBlogTags;
+    console.log('Firebase not enabled, returning empty array');
+    return [];
   }
 
   try {
@@ -3031,7 +4702,7 @@ export const getBlogTags = async (): Promise<BlogTag[]> => {
     })) as BlogTag[];
   } catch (error) {
     console.error('Error getting blog tags:', error);
-    return mockBlogTags;
+    return [];
   }
 };
 
@@ -3057,9 +4728,19 @@ export const getBlogPostsByCategory = async (categoryId: string, limit?: number)
 export const updateBlogPostLikes = async (postId: string, likesCount: number): Promise<void> => {
   try {
     if (USE_FIREBASE) {
-      await updateDoc(doc(db, 'blogPosts', postId), {
+      // Check if document exists before updating
+      const { doc, getDoc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+      const docRef = doc(db, 'blogPosts', postId);
+      const docSnap = await getDoc(docRef);
+      
+      if (!docSnap.exists()) {
+        console.warn(`Blog post with ID ${postId} does not exist`);
+        return;
+      }
+      
+      await updateDoc(docRef, {
         likesCount,
-        updatedAt: new Date()
+        updatedAt: serverTimestamp()
       });
     }
     // Mock implementation for development
@@ -3071,24 +4752,38 @@ export const updateBlogPostLikes = async (postId: string, likesCount: number): P
 };
 
 export const incrementBlogPostViews = async (postId: string): Promise<void> => {
+  console.log('👁️ [INCREMENT_VIEWS] Called with postId:', postId);
+  
   try {
     if (USE_FIREBASE) {
-      await updateDoc(doc(db, 'blogPosts', postId), {
-        views: increment(1),
-        updatedAt: new Date()
+      // Check if document exists before updating
+      const { doc, getDoc, updateDoc, increment, serverTimestamp } = await import('firebase/firestore');
+      const docRef = doc(db, 'blogPosts', postId);
+      const docSnap = await getDoc(docRef);
+      
+      if (!docSnap.exists()) {
+        console.warn(`⚠️ [INCREMENT_VIEWS] Blog post with ID ${postId} does not exist`);
+        return;
+      }
+      
+      console.log('✅ [INCREMENT_VIEWS] Document exists, updating view count');
+      await updateDoc(docRef, {
+        viewCount: increment(1),
+        updatedAt: serverTimestamp()
       });
+      console.log('✅ [INCREMENT_VIEWS] Successfully incremented view count');
     }
     // Mock implementation for development
-    console.log(`Incremented views for post ${postId}`);
+    console.log(`📊 [INCREMENT_VIEWS] Mock: Incremented views for post ${postId}`);
   } catch (error) {
-    console.error('Error incrementing blog post views:', error);
+    console.error('❌ [INCREMENT_VIEWS] Error incrementing blog post views:', error);
     throw error;
   }
 };
 
 export const getFeaturedBlogPosts = async (limit = 3): Promise<BlogPost[]> => {
   if (!FIREBASE_ENABLED || !db) {
-    return mockBlogPosts.filter(post => post.featured).slice(0, limit);
+    return [];
   }
 
   try {
@@ -3112,6 +4807,413 @@ export const getFeaturedBlogPosts = async (limit = 3): Promise<BlogPost[]> => {
     })) as BlogPost[];
   } catch (error) {
     console.error('Error getting featured blog posts:', error);
-    return mockBlogPosts.filter(post => post.featured).slice(0, limit);
+    return [];
+  }
+};
+
+// ===============================
+// Subscription Reviews CRUD Operations
+// ===============================
+
+// Add subscription review
+export const addSubscriptionReview = async (reviewData: Omit<SubscriptionReview, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
+  console.log('📝 [ADD_SUBSCRIPTION_REVIEW] Adding review:', reviewData);
+  
+  if (!FIREBASE_ENABLED || !db) {
+    console.log('Firebase not enabled, returning mock review ID');
+    return 'mock-review-' + Date.now();
+  }
+
+  try {
+    const reviewsCollection = collection(db, 'subscriptionReviews');
+    const docRef = await addDoc(reviewsCollection, {
+      ...reviewData,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    
+    console.log('✅ [ADD_SUBSCRIPTION_REVIEW] Review added with ID:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('❌ [ADD_SUBSCRIPTION_REVIEW] Error adding review:', error);
+    throw error;
+  }
+};
+
+// Get subscription reviews
+export const getSubscriptionReviews = async (subscriptionId?: string, productId?: string, status?: string): Promise<SubscriptionReview[]> => {
+  console.log('📖 [GET_SUBSCRIPTION_REVIEWS] Getting reviews for:', { subscriptionId, productId, status });
+  
+  if (!FIREBASE_ENABLED || !db) {
+    console.log('Firebase not enabled, returning mock reviews');
+    return [];
+  }
+
+  try {
+    const reviewsCollection = collection(db, 'subscriptionReviews');
+    let q = query(reviewsCollection, orderBy('createdAt', 'desc'));
+    
+    if (subscriptionId) {
+      q = query(q, where('subscriptionId', '==', subscriptionId));
+    }
+    
+    if (productId) {
+      q = query(q, where('productId', '==', productId));
+    }
+    
+    if (status) {
+      q = query(q, where('status', '==', status));
+    }
+    
+    const querySnapshot = await getDocs(q);
+    const reviews = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...(doc.data() as any),
+      createdAt: (doc.data() as any).createdAt?.toDate() || new Date(),
+      updatedAt: (doc.data() as any).updatedAt?.toDate() || new Date()
+    })) as SubscriptionReview[];
+    
+    console.log('✅ [GET_SUBSCRIPTION_REVIEWS] Reviews loaded:', reviews.length);
+    return reviews;
+  } catch (error) {
+    console.error('❌ [GET_SUBSCRIPTION_REVIEWS] Error getting reviews:', error);
+    return [];
+  }
+};
+
+// Get customer reviews
+export const getCustomerReviews = async (customerEmail: string): Promise<SubscriptionReview[]> => {
+  console.log('📖 [GET_CUSTOMER_REVIEWS] Getting reviews for customer:', customerEmail);
+  
+  if (!FIREBASE_ENABLED || !db) {
+    console.log('Firebase not enabled, returning mock reviews');
+    return [];
+  }
+
+  try {
+    const reviewsCollection = collection(db, 'subscriptionReviews');
+    const q = query(
+      reviewsCollection, 
+      where('customerEmail', '==', customerEmail),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const reviews = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...(doc.data() as any),
+      createdAt: (doc.data() as any).createdAt?.toDate() || new Date(),
+      updatedAt: (doc.data() as any).updatedAt?.toDate() || new Date()
+    })) as SubscriptionReview[];
+    
+    console.log('✅ [GET_CUSTOMER_REVIEWS] Customer reviews loaded:', reviews.length);
+    return reviews;
+  } catch (error) {
+    console.error('❌ [GET_CUSTOMER_REVIEWS] Error getting customer reviews:', error);
+    return [];
+  }
+};
+
+// Update subscription review
+export const updateSubscriptionReview = async (reviewId: string, updates: Partial<SubscriptionReview>): Promise<void> => {
+  console.log('📝 [UPDATE_SUBSCRIPTION_REVIEW] Updating review:', reviewId);
+  
+  if (!FIREBASE_ENABLED || !db) {
+    console.log('Firebase not enabled, simulating review update');
+    return;
+  }
+
+  try {
+    const reviewRef = doc(db, 'subscriptionReviews', reviewId);
+    await updateDoc(reviewRef, {
+      ...updates,
+      updatedAt: serverTimestamp()
+    });
+    
+    console.log('✅ [UPDATE_SUBSCRIPTION_REVIEW] Review updated successfully');
+  } catch (error) {
+    console.error('❌ [UPDATE_SUBSCRIPTION_REVIEW] Error updating review:', error);
+    throw error;
+  }
+};
+
+// Delete subscription review
+export const deleteSubscriptionReview = async (reviewId: string): Promise<void> => {
+  console.log('🗑️ [DELETE_SUBSCRIPTION_REVIEW] Deleting review:', reviewId);
+  
+  if (!FIREBASE_ENABLED || !db) {
+    console.log('Firebase not enabled, simulating review deletion');
+    return;
+  }
+
+  try {
+    const reviewRef = doc(db, 'subscriptionReviews', reviewId);
+    await deleteDoc(reviewRef);
+    
+    console.log('✅ [DELETE_SUBSCRIPTION_REVIEW] Review deleted successfully');
+  } catch (error) {
+    console.error('❌ [DELETE_SUBSCRIPTION_REVIEW] Error deleting review:', error);
+    throw error;
+  }
+};
+
+// Check if customer can review subscription
+export const canCustomerReviewSubscription = async (customerEmail: string, subscriptionId: string): Promise<boolean> => {
+  console.log('🔍 [CAN_CUSTOMER_REVIEW] Checking if customer can review:', { customerEmail, subscriptionId });
+  
+  if (!FIREBASE_ENABLED || !db) {
+    console.log('Firebase not enabled, allowing review');
+    return true;
+  }
+
+  try {
+    // Check if customer already reviewed this subscription
+    const existingReviews = await getSubscriptionReviews(subscriptionId);
+    const hasExistingReview = existingReviews.some(review => 
+      review.customerEmail.toLowerCase() === customerEmail.toLowerCase()
+    );
+    
+    if (hasExistingReview) {
+      console.log('❌ [CAN_CUSTOMER_REVIEW] Customer already reviewed this subscription');
+      return false;
+    }
+    
+    // Check if customer has this subscription
+    const customerSubscriptions = await getCustomerSubscriptions(customerEmail);
+    const hasSubscription = customerSubscriptions.some(sub => sub.id === subscriptionId);
+    
+    if (!hasSubscription) {
+      console.log('❌ [CAN_CUSTOMER_REVIEW] Customer does not have this subscription');
+      return false;
+    }
+    
+    console.log('✅ [CAN_CUSTOMER_REVIEW] Customer can review this subscription');
+    return true;
+  } catch (error) {
+    console.error('❌ [CAN_CUSTOMER_REVIEW] Error checking review eligibility:', error);
+    return false;
+  }
+};
+
+// Get product average rating
+export const getProductAverageRating = async (productId: string): Promise<{ average: number; count: number }> => {
+  console.log('📊 [GET_PRODUCT_AVERAGE_RATING] Getting rating for product:', productId);
+  
+  if (!FIREBASE_ENABLED || !db) {
+    console.log('Firebase not enabled, returning mock rating');
+    return { average: 4.5, count: 10 };
+  }
+
+  try {
+    const reviews = await getSubscriptionReviews(undefined, productId, 'approved');
+    
+    if (reviews.length === 0) {
+      return { average: 0, count: 0 };
+    }
+    
+    const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
+    const average = totalRating / reviews.length;
+    
+    console.log('✅ [GET_PRODUCT_AVERAGE_RATING] Product rating calculated:', { average, count: reviews.length });
+    return { average: Math.round(average * 10) / 10, count: reviews.length };
+  } catch (error) {
+    console.error('❌ [GET_PRODUCT_AVERAGE_RATING] Error getting product rating:', error);
+    return { average: 0, count: 0 };
+  }
+};
+
+// Update product review statistics
+export const updateProductReviewStats = async (productId: string): Promise<void> => {
+  console.log('📊 [UPDATE_PRODUCT_REVIEW_STATS] Updating stats for product:', productId);
+  
+  if (!FIREBASE_ENABLED || !db) {
+    console.log('Firebase not enabled, skipping product stats update');
+    return;
+  }
+
+  try {
+    // Get all approved reviews for this product
+    const reviews = await getSubscriptionReviews(undefined, productId, 'approved');
+    
+    const reviewsCount = reviews.length;
+    const averageRating = reviewsCount > 0 
+      ? Math.round((reviews.reduce((sum, review) => sum + review.rating, 0) / reviewsCount) * 10) / 10
+      : 0;
+
+    // Update product document
+    const productRef = doc(db, 'products', productId);
+    await updateDoc(productRef, {
+      reviewsCount: reviewsCount,
+      averageRating: averageRating,
+      updatedAt: serverTimestamp()
+    });
+
+    console.log('✅ [UPDATE_PRODUCT_REVIEW_STATS] Product stats updated:', {
+      productId,
+      reviewsCount,
+      averageRating
+    });
+  } catch (error) {
+    console.error('❌ [UPDATE_PRODUCT_REVIEW_STATS] Error updating product stats:', error);
+    throw error;
+  }
+};
+
+// Update all products review statistics
+export const updateAllProductsReviewStats = async (): Promise<void> => {
+  console.log('📊 [UPDATE_ALL_PRODUCTS_REVIEW_STATS] Updating stats for all products');
+  
+  if (!FIREBASE_ENABLED || !db) {
+    console.log('Firebase not enabled, skipping products stats update');
+    return;
+  }
+
+  try {
+    const products = await getProducts();
+    
+    for (const product of products) {
+      await updateProductReviewStats(product.id);
+    }
+
+    console.log('✅ [UPDATE_ALL_PRODUCTS_REVIEW_STATS] All products stats updated');
+  } catch (error) {
+    console.error('❌ [UPDATE_ALL_PRODUCTS_REVIEW_STATS] Error updating all products stats:', error);
+    throw error;
+  }
+};
+
+// Add sample reviews for testing
+export const addSampleReviews = async (): Promise<void> => {
+  console.log('📝 [ADD_SAMPLE_REVIEWS] Adding sample reviews for testing');
+  
+  if (!FIREBASE_ENABLED || !db) {
+    console.log('Firebase not enabled, skipping sample reviews');
+    return;
+  }
+
+  try {
+    const sampleReviews = [
+      {
+        subscriptionId: 'sample-sub-1',
+        customerId: 'customer1@example.com',
+        customerEmail: 'customer1@example.com',
+        customerName: 'أحمد محمد',
+        productId: '1', // Netflix
+        productName: 'Netflix Premium',
+        rating: 5,
+        title: 'خدمة ممتازة',
+        comment: 'خدمة Netflix ممتازة جداً، المحتوى متنوع والجودة عالية. أنصح بها بشدة!',
+        isVerified: true,
+        helpful: 3,
+        status: 'approved' as const
+      },
+      {
+        subscriptionId: 'sample-sub-2',
+        customerId: 'customer2@example.com',
+        customerEmail: 'customer2@example.com',
+        customerName: 'فاطمة أحمد',
+        productId: '1', // Netflix
+        productName: 'Netflix Premium',
+        rating: 4,
+        title: 'جيد جداً',
+        comment: 'الخدمة جيدة والمحتوى ممتاز، لكن السعر مرتفع قليلاً.',
+        isVerified: true,
+        helpful: 1,
+        status: 'approved' as const
+      },
+      {
+        subscriptionId: 'sample-sub-3',
+        customerId: 'customer3@example.com',
+        customerEmail: 'customer3@example.com',
+        customerName: 'محمد علي',
+        productId: '2', // Spotify
+        productName: 'Spotify Premium',
+        rating: 5,
+        title: 'أفضل منصة موسيقية',
+        comment: 'Spotify هو الأفضل في مجال الموسيقى، المكتبة ضخمة والجودة ممتازة.',
+        isVerified: true,
+        helpful: 5,
+        status: 'approved' as const
+      },
+      {
+        subscriptionId: 'sample-sub-4',
+        customerId: 'customer4@example.com',
+        customerEmail: 'customer4@example.com',
+        customerName: 'سارة خالد',
+        productId: '2', // Spotify
+        productName: 'Spotify Premium',
+        rating: 4,
+        title: 'ممتاز',
+        comment: 'خدمة رائعة، الموسيقى بدون إعلانات والتحميل سريع.',
+        isVerified: true,
+        helpful: 2,
+        status: 'approved' as const
+      },
+      {
+        subscriptionId: 'sample-sub-5',
+        customerId: 'customer5@example.com',
+        customerEmail: 'customer5@example.com',
+        customerName: 'خالد عبدالله',
+        productId: '3', // Shahid
+        productName: 'Shahid VIP',
+        rating: 5,
+        title: 'محتوى عربي ممتاز',
+        comment: 'أفضل منصة للمحتوى العربي، المسلسلات والأفلام رائعة.',
+        isVerified: true,
+        helpful: 4,
+        status: 'approved' as const
+      },
+      {
+        subscriptionId: 'sample-sub-6',
+        customerId: 'customer6@example.com',
+        customerEmail: 'customer6@example.com',
+        customerName: 'نورا سعد',
+        productId: '4', // Disney+
+        productName: 'Disney+ Premium',
+        rating: 5,
+        title: 'مثالي للأطفال',
+        comment: 'محتوى Disney رائع، الأطفال يحبونه والجودة ممتازة.',
+        isVerified: true,
+        helpful: 3,
+        status: 'approved' as const
+      },
+      {
+        subscriptionId: 'sample-sub-7',
+        customerId: 'customer7@example.com',
+        customerEmail: 'customer7@example.com',
+        customerName: 'عبدالرحمن محمد',
+        productId: '5', // Apple Music
+        productName: 'Apple Music',
+        rating: 4,
+        title: 'جيد',
+        comment: 'خدمة جيدة لكن تحتاج تحسين في بعض الميزات.',
+        isVerified: true,
+        helpful: 1,
+        status: 'approved' as const
+      },
+      {
+        subscriptionId: 'sample-sub-8',
+        customerId: 'customer8@example.com',
+        customerEmail: 'customer8@example.com',
+        customerName: 'ريم أحمد',
+        productId: '6', // Adobe
+        productName: 'Adobe Creative Cloud',
+        rating: 5,
+        title: 'أدوات احترافية',
+        comment: 'أفضل مجموعة أدوات للتصميم والإبداع، لا غنى عنها للمصممين.',
+        isVerified: true,
+        helpful: 6,
+        status: 'approved' as const
+      }
+    ];
+
+    for (const reviewData of sampleReviews) {
+      await addSubscriptionReview(reviewData);
+    }
+
+    console.log('✅ [ADD_SAMPLE_REVIEWS] Sample reviews added successfully');
+  } catch (error) {
+    console.error('❌ [ADD_SAMPLE_REVIEWS] Error adding sample reviews:', error);
+    throw error;
   }
 };

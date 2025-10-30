@@ -58,7 +58,8 @@ import {
   BookOpen,
   Tags,
   Save,
-  Image
+  Image,
+  Ticket
 } from 'lucide-react';
 import CurrencyDisplay from '@/components/CurrencyDisplay';
 import { useSettings } from '../../contexts/SettingsContext';
@@ -69,66 +70,668 @@ import {
   updateBlogPost, 
   deleteBlogPost, 
   generateSlug, 
-  calculateReadingTime 
+  calculateReadingTime,
+  getDashboardStats,
+  getOrders,
+  getProducts,
+  getCustomers
 } from '../../lib/database';
+import { SEOTab } from './SEOTab';
+import type { Order, BlogPost, Product, Customer } from '@/lib/firebase';
 
 // Overview Tab Component
-export const OverviewTab = () => (
-  <div>
-    <h2 className="text-3xl font-bold text-white mb-6">نظرة عامة</h2>
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
-        <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-emerald-400" />
-          الإحصائيات الأخيرة
-        </h3>
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <span className="text-white/70">المبيعات اليوم</span>
-            <span className="text-white font-semibold">$2,450</span>
+export const OverviewTab = () => {
+  const [stats, setStats] = useState<{
+    todaySales: number;
+    newOrdersToday: number;
+    activeCustomers: number;
+    totalCustomers: number;
+    totalProducts: number;
+    totalOrders: number;
+    totalRevenue: number;
+    averageOrderValue: number;
+    recentOrders: Order[];
+    recentBlogPosts: BlogPost[];
+    totalBlogPosts: number;
+    publishedBlogPosts: number;
+  }>({
+    todaySales: 0,
+    newOrdersToday: 0,
+    activeCustomers: 0,
+    totalCustomers: 0,
+    totalProducts: 0,
+    totalOrders: 0,
+    totalRevenue: 0,
+    averageOrderValue: 0,
+    recentOrders: [],
+    recentBlogPosts: [],
+    totalBlogPosts: 0,
+    publishedBlogPosts: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadStats();
+  }, []);
+
+  const loadStats = async () => {
+    try {
+      setLoading(true);
+      const dashboardStats = await getDashboardStats();
+      setStats(dashboardStats);
+    } catch (error) {
+      console.error('Error loading dashboard stats:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('ar-SA', {
+      style: 'currency',
+      currency: 'SAR'
+    }).format(amount);
+  };
+
+  const formatTimeAgo = (date: Date) => {
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'الآن';
+    if (diffInMinutes < 60) return `منذ ${diffInMinutes} دقيقة`;
+    if (diffInMinutes < 1440) return `منذ ${Math.floor(diffInMinutes / 60)} ساعة`;
+    return `منذ ${Math.floor(diffInMinutes / 1440)} يوم`;
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <h2 className="text-3xl font-bold text-white mb-6">نظرة عامة</h2>
+        <div className="flex items-center justify-center h-64">
+          <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-white/60 mr-3">جارِ تحميل الإحصائيات...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-3xl font-bold text-white">نظرة عامة</h2>
+        <button
+          onClick={loadStats}
+          disabled={loading}
+          className="px-4 py-2 bg-blue-500/20 text-blue-300 rounded-lg border border-blue-500/30 hover:bg-blue-500/30 transition-colors flex items-center gap-2"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          تحديث الإحصائيات
+        </button>
+      </div>
+      
+      {/* Main Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="bg-gradient-to-r from-emerald-500/20 to-green-500/20 rounded-2xl p-6 border border-emerald-500/30">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-emerald-300 text-sm font-medium">مبيعات اليوم</p>
+              <p className="text-white text-2xl font-bold">{formatCurrency(stats.todaySales)}</p>
+            </div>
+            <TrendingUp className="w-8 h-8 text-emerald-400" />
           </div>
-          <div className="flex justify-between items-center">
-            <span className="text-white/70">الطلبات الجديدة</span>
-            <span className="text-white font-semibold">23</span>
+        </div>
+
+        <div className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-2xl p-6 border border-blue-500/30">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-300 text-sm font-medium">طلبات جديدة</p>
+              <p className="text-white text-2xl font-bold">{stats.newOrdersToday}</p>
+            </div>
+            <Package className="w-8 h-8 text-blue-400" />
           </div>
-          <div className="flex justify-between items-center">
-            <span className="text-white/70">العملاء النشطين</span>
-            <span className="text-white font-semibold">1,234</span>
+        </div>
+
+        <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-2xl p-6 border border-purple-500/30">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-300 text-sm font-medium">العملاء النشطين</p>
+              <p className="text-white text-2xl font-bold">{stats.activeCustomers}</p>
+            </div>
+            <Users className="w-8 h-8 text-purple-400" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-orange-500/20 to-red-500/20 rounded-2xl p-6 border border-orange-500/30">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-orange-300 text-sm font-medium">إجمالي المنتجات</p>
+              <p className="text-white text-2xl font-bold">{stats.totalProducts}</p>
+            </div>
+            <Package className="w-8 h-8 text-orange-400" />
           </div>
         </div>
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Detailed Stats */}
+        <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+          <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5 text-emerald-400" />
+            الإحصائيات التفصيلية
+          </h3>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <span className="text-white/70">إجمالي العملاء</span>
+              <span className="text-white font-semibold">{stats.totalCustomers}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-white/70">إجمالي الطلبات</span>
+              <span className="text-white font-semibold">{stats.totalOrders}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-white/70">إجمالي الإيرادات</span>
+              <span className="text-white font-semibold">{formatCurrency(stats.totalRevenue)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-white/70">متوسط قيمة الطلب</span>
+              <span className="text-white font-semibold">{formatCurrency(stats.averageOrderValue)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-white/70">إجمالي المقالات</span>
+              <span className="text-white font-semibold">{stats.totalBlogPosts}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-white/70">المقالات المنشورة</span>
+              <span className="text-white font-semibold">{stats.publishedBlogPosts}</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* Recent Activity */}
+        <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+          <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-blue-400" />
+            النشاط الأخير
+          </h3>
+          <div className="space-y-3">
+            {stats.recentOrders.slice(0, 5).map((order, index) => (
+              <div key={order.id} className="flex items-center gap-3">
+                <div className={`w-2 h-2 rounded-full ${
+                  order.status === 'confirmed' ? 'bg-emerald-400' :
+                  order.status === 'pending' ? 'bg-yellow-400' : 'bg-blue-400'
+                }`}></div>
+                <div className="flex-1">
+                  <span className="text-white/70 text-sm">
+                    طلب جديد من {order.customerName}
+                  </span>
+                  <div className="text-white/50 text-xs">
+                    {formatCurrency(order.totalAmount)} • {formatTimeAgo(order.createdAt)}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {stats.recentOrders.length === 0 && (
+              <p className="text-white/50 text-sm">لا توجد طلبات حديثة</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Blog Posts */}
+      {stats.recentBlogPosts.length > 0 && (
+        <div className="mt-8 bg-white/5 rounded-2xl p-6 border border-white/10">
+          <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-purple-400" />
+            أحدث المقالات
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {stats.recentBlogPosts.map((post) => (
+              <div key={post.id} className="bg-white/5 rounded-xl p-4 border border-white/10">
+                <h4 className="text-white font-medium mb-2 line-clamp-2">{post.title}</h4>
+                <p className="text-white/60 text-sm mb-3 line-clamp-2">{post.excerpt}</p>
+                <div className="flex items-center justify-between text-xs text-white/50">
+                  <span>{post.authorName}</span>
+                  <span>{formatTimeAgo(post.createdAt)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Analytics Tab Component
+export const AnalyticsTab = () => {
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<any>(null);
+  const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | '1y' | 'all'>('30d');
+  const [ordersData, setOrdersData] = useState<Order[]>([]);
+  const [productsData, setProductsData] = useState<Product[]>([]);
+  const [customersData, setCustomersData] = useState<Customer[]>([]);
+  const [couponsData, setCouponsData] = useState<any[]>([]);
+
+  useEffect(() => {
+    loadAnalyticsData();
+  }, [timeRange]);
+
+  const loadAnalyticsData = async () => {
+    try {
+      setLoading(true);
+      const [orders, products, customers, statsData] = await Promise.all([
+        getOrders(),
+        getProducts(),
+        getCustomers(),
+        getDashboardStats()
+      ]);
+
+      const filteredOrders = filterByTimeRange(orders, timeRange);
       
-      <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
-        <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
-          <Activity className="w-5 h-5 text-blue-400" />
-          النشاط الأخير
-        </h3>
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
-            <span className="text-white/70 text-sm">طلب جديد من أحمد محمد</span>
+      setOrdersData(filteredOrders);
+      setProductsData(products);
+      setCustomersData(customers);
+      setStats(statsData);
+      
+      // Load coupons if function exists
+      try {
+        const { getDiscountCodes } = await import('@/lib/database');
+        const coupons = await getDiscountCodes();
+        setCouponsData(coupons);
+      } catch (error) {
+        console.log('Coupons not available');
+      }
+    } catch (error) {
+      console.error('Error loading analytics data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterByTimeRange = (data: any[], range: string): any[] => {
+    const now = new Date();
+    let startDate = new Date();
+
+    switch (range) {
+      case '7d':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case '30d':
+        startDate.setDate(now.getDate() - 30);
+        break;
+      case '90d':
+        startDate.setDate(now.getDate() - 90);
+        break;
+      case '1y':
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
+      case 'all':
+        return data;
+    }
+
+    return data.filter(item => {
+      const itemDate = item.createdAt instanceof Date ? item.createdAt : new Date(item.createdAt);
+      return itemDate >= startDate;
+    });
+  };
+
+  const calculateSalesStats = () => {
+    if (!ordersData.length) return null;
+
+    const confirmedOrders = ordersData.filter(o => o.status === 'confirmed' && o.paymentStatus === 'paid');
+    const totalRevenue = confirmedOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    const totalOrders = ordersData.length;
+    const averageOrderValue = totalOrders > 0 ? totalRevenue / confirmedOrders.length : 0;
+    const conversionRate = totalOrders > 0 ? (confirmedOrders.length / totalOrders) * 100 : 0;
+
+    return {
+      totalRevenue,
+      totalOrders,
+      confirmedOrders: confirmedOrders.length,
+      averageOrderValue,
+      conversionRate
+    };
+  };
+
+  const getTopProducts = () => {
+    const productSales: Record<string, { count: number; revenue: number; name: string }> = {};
+    
+    ordersData.forEach(order => {
+      if (order.status === 'confirmed' && order.paymentStatus === 'paid') {
+        const productId = order.productId;
+        if (!productSales[productId]) {
+          productSales[productId] = {
+            count: 0,
+            revenue: 0,
+            name: order.productName
+          };
+        }
+        productSales[productId].count += order.quantity || 1;
+        productSales[productId].revenue += order.totalAmount || 0;
+      }
+    });
+
+    return Object.entries(productSales)
+      .map(([id, data]) => ({ id, ...data }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10);
+  };
+
+  const getOrdersOverTime = () => {
+    const dailyData: Record<string, { orders: number; revenue: number }> = {};
+    
+    ordersData.forEach(order => {
+      const date = new Date(order.createdAt);
+      const dateKey = date.toISOString().split('T')[0];
+      
+      if (!dailyData[dateKey]) {
+        dailyData[dateKey] = { orders: 0, revenue: 0 };
+      }
+      
+      dailyData[dateKey].orders += 1;
+      if (order.status === 'confirmed' && order.paymentStatus === 'paid') {
+        dailyData[dateKey].revenue += order.totalAmount || 0;
+      }
+    });
+
+    return Object.entries(dailyData)
+      .map(([date, data]) => ({ date, ...data }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  };
+
+  const getCustomerRetentionData = () => {
+    const customerOrderCounts: Record<string, number> = {};
+    
+    ordersData.forEach(order => {
+      const email = order.customerEmail;
+      customerOrderCounts[email] = (customerOrderCounts[email] || 0) + 1;
+    });
+
+    const newCustomers = Object.values(customerOrderCounts).filter(count => count === 1).length;
+    const returningCustomers = Object.values(customerOrderCounts).filter(count => count > 1).length;
+    const retentionRate = customersData.length > 0 
+      ? (returningCustomers / customersData.length) * 100 
+      : 0;
+
+    return {
+      newCustomers,
+      returningCustomers,
+      retentionRate,
+      totalCustomers: customersData.length
+    };
+  };
+
+  const getCouponStats = () => {
+    if (!couponsData.length) return null;
+
+    const usedCoupons = couponsData.filter(c => c.usageCount > 0);
+    const totalDiscount = ordersData
+      .filter(o => o.discountAmount && o.status === 'confirmed')
+      .reduce((sum, o) => sum + (o.discountAmount || 0), 0);
+    
+    return {
+      totalCoupons: couponsData.length,
+      activeCoupons: couponsData.filter(c => c.isActive).length,
+      usedCoupons: usedCoupons.length,
+      totalDiscount,
+      averageDiscountPerOrder: ordersData.filter(o => o.discountAmount).length > 0
+        ? totalDiscount / ordersData.filter(o => o.discountAmount).length
+        : 0
+    };
+  };
+
+  const salesStats = calculateSalesStats();
+  const topProducts = getTopProducts();
+  const ordersOverTime = getOrdersOverTime();
+  const customerRetention = getCustomerRetentionData();
+  const couponStats = getCouponStats();
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('ar-SA', {
+      style: 'currency',
+      currency: 'SAR'
+    }).format(amount);
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('ar-SA', {
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+        <span className="text-white/60 mr-3">جارِ تحميل البيانات...</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-3xl font-bold text-white">التقارير والإحصائيات</h2>
+        <select
+          value={timeRange}
+          onChange={(e) => setTimeRange(e.target.value as any)}
+          className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white"
+        >
+          <option value="7d">آخر 7 أيام</option>
+          <option value="30d">آخر 30 يوم</option>
+          <option value="90d">آخر 90 يوم</option>
+          <option value="1y">آخر سنة</option>
+          <option value="all">الكل</option>
+        </select>
+      </div>
+
+      {/* Sales Stats Cards */}
+      {salesStats && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-xl p-6 border border-blue-500/30">
+            <div className="flex items-center justify-between mb-2">
+              <DollarSign className="w-8 h-8 text-blue-400" />
+              <span className="text-blue-300 text-sm">إجمالي المبيعات</span>
+            </div>
+            <p className="text-white text-2xl font-bold">{formatCurrency(salesStats.totalRevenue)}</p>
+            <p className="text-white/60 text-sm mt-1">{salesStats.confirmedOrders} طلب مدفوع</p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-            <span className="text-white/70 text-sm">دفعة مستلمة بقيمة $99</span>
+
+          <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-xl p-6 border border-green-500/30">
+            <div className="flex items-center justify-between mb-2">
+              <Package className="w-8 h-8 text-green-400" />
+              <span className="text-green-300 text-sm">عدد الطلبات</span>
+            </div>
+            <p className="text-white text-2xl font-bold">{salesStats.totalOrders}</p>
+            <p className="text-white/60 text-sm mt-1">منها {salesStats.confirmedOrders} مؤكد</p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-            <span className="text-white/70 text-sm">تحديث منتج Netflix</span>
+
+          <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-xl p-6 border border-purple-500/30">
+            <div className="flex items-center justify-between mb-2">
+              <TrendingUp className="w-8 h-8 text-purple-400" />
+              <span className="text-purple-300 text-sm">متوسط قيمة الطلب</span>
+            </div>
+            <p className="text-white text-2xl font-bold">{formatCurrency(salesStats.averageOrderValue)}</p>
+            <p className="text-white/60 text-sm mt-1">للطلبات المدفوعة</p>
           </div>
+
+          <div className="bg-gradient-to-r from-orange-500/20 to-red-500/20 rounded-xl p-6 border border-orange-500/30">
+            <div className="flex items-center justify-between mb-2">
+              <Target className="w-8 h-8 text-orange-400" />
+              <span className="text-orange-300 text-sm">معدل التحويل</span>
+            </div>
+            <p className="text-white text-2xl font-bold">{salesStats.conversionRate.toFixed(1)}%</p>
+            <p className="text-white/60 text-sm mt-1">من الطلبات</p>
+          </div>
+        </div>
+      )}
+
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Orders Over Time Chart */}
+        <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+          <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <LineChart className="w-5 h-5 text-blue-400" />
+            الطلبات والمبيعات عبر الزمن
+          </h3>
+          {ordersOverTime.length > 0 ? (
+            <div className="space-y-2">
+              {ordersOverTime.slice(-14).map((item, index) => {
+                const maxRevenue = Math.max(...ordersOverTime.map(i => i.revenue));
+                const maxOrders = Math.max(...ordersOverTime.map(i => i.orders));
+                
+                return (
+                  <div key={item.date} className="space-y-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-white/60">{formatDate(item.date)}</span>
+                      <span className="text-white font-medium">
+                        {item.orders} طلب - {formatCurrency(item.revenue)}
+                      </span>
+                    </div>
+                    <div className="flex gap-2 h-4">
+                      <div
+                        className="bg-blue-500/30 rounded"
+                        style={{ width: `${(item.revenue / maxRevenue) * 100}%` }}
+                      />
+                      <div
+                        className="bg-green-500/30 rounded"
+                        style={{ width: `${(item.orders / maxOrders) * 20}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-white/60 text-center py-8">لا توجد بيانات</p>
+          )}
+        </div>
+
+        {/* Top Products */}
+        <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+          <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <Star className="w-5 h-5 text-yellow-400" />
+            المنتجات الأكثر مبيعاً
+          </h3>
+          {topProducts.length > 0 ? (
+            <div className="space-y-3">
+              {topProducts.map((product, index) => {
+                const maxRevenue = Math.max(...topProducts.map(p => p.revenue));
+                
+                return (
+                  <div key={product.id} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center text-xs font-bold text-white">
+                          {index + 1}
+                        </span>
+                        <span className="text-white font-medium">{product.name}</span>
+                      </div>
+                      <span className="text-white/80 font-semibold">
+                        {formatCurrency(product.revenue)}
+                      </span>
+                    </div>
+                    <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full"
+                        style={{ width: `${(product.revenue / maxRevenue) * 100}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-xs text-white/60">
+                      <span>{product.count} طلب</span>
+                      <span>{((product.revenue / maxRevenue) * 100).toFixed(1)}% من المبيعات</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-white/60 text-center py-8">لا توجد بيانات</p>
+          )}
+        </div>
+      </div>
+
+      {/* Customer Retention & Coupons */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Customer Retention */}
+        <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+          <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <Users className="w-5 h-5 text-purple-400" />
+            تحليل العملاء والاحتفاظ
+          </h3>
+          {customerRetention && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
+                <span className="text-white/80">إجمالي العملاء</span>
+                <span className="text-white text-xl font-bold">{customerRetention.totalCustomers}</span>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
+                <span className="text-white/80">عملاء جدد</span>
+                <span className="text-green-400 text-xl font-bold">{customerRetention.newCustomers}</span>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
+                <span className="text-white/80">عملاء متكررين</span>
+                <span className="text-blue-400 text-xl font-bold">{customerRetention.returningCustomers}</span>
+              </div>
+              <div className="p-4 bg-gradient-to-r from-purple-500/20 to-pink-500/20 rounded-lg border border-purple-500/30">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-white/80">معدل الاحتفاظ</span>
+                  <span className="text-white text-2xl font-bold">
+                    {customerRetention.retentionRate.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="h-2 bg-white/20 rounded-full overflow-hidden mt-2">
+                  <div
+                    className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
+                    style={{ width: `${customerRetention.retentionRate}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Coupon Stats */}
+        <div className="bg-white/5 rounded-xl p-6 border border-white/10">
+          <h3 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+            <Ticket className="w-5 h-5 text-green-400" />
+            تقرير الكوبونات والخصومات
+          </h3>
+          {couponStats ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
+                <span className="text-white/80">إجمالي الكوبونات</span>
+                <span className="text-white text-xl font-bold">{couponStats.totalCoupons}</span>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
+                <span className="text-white/80">كوبونات نشطة</span>
+                <span className="text-green-400 text-xl font-bold">{couponStats.activeCoupons}</span>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-white/5 rounded-lg">
+                <span className="text-white/80">كوبونات مستخدمة</span>
+                <span className="text-blue-400 text-xl font-bold">{couponStats.usedCoupons}</span>
+              </div>
+              <div className="p-4 bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-lg border border-green-500/30">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-white/80">إجمالي الخصومات</span>
+                  <span className="text-white text-2xl font-bold">
+                    {formatCurrency(couponStats.totalDiscount)}
+                  </span>
+                </div>
+                <p className="text-white/60 text-sm mt-1">
+                  متوسط الخصم: {formatCurrency(couponStats.averageDiscountPerOrder)} لكل طلب
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-white/60 text-center py-8">لا توجد بيانات كوبونات</p>
+          )}
         </div>
       </div>
     </div>
-  </div>
-);
-
-// Analytics Tab Component
-export const AnalyticsTab = () => (
-  <div>
-    <h2 className="text-3xl font-bold text-white mb-6">التحليلات</h2>
-    <p className="text-white/60 text-lg">لوحة التحليلات قريباً...</p>
-  </div>
-);
+  );
+};
 
 // Customers Tab Component
 export const CustomersTab = () => (
@@ -139,53 +742,141 @@ export const CustomersTab = () => (
 );
 
 // Orders Tab Component
-export const OrdersTab = () => (
-  <div>
-    <h2 className="text-3xl font-bold text-white mb-6">الطلبات</h2>
-    <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+export const OrdersTab = () => {
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadOrders();
+  }, []);
+
+  const loadOrders = async () => {
+    try {
+      setLoading(true);
+      const ordersData = await getOrders();
+      setOrders(ordersData.slice(0, 10)); // Show only recent 10 orders
+    } catch (error) {
+      console.error('Error loading orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('ar-SA', {
+      style: 'currency',
+      currency: 'SAR'
+    }).format(amount);
+  };
+
+  const formatTimeAgo = (date: Date) => {
+    const now = new Date();
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+    
+    if (diffInMinutes < 1) return 'الآن';
+    if (diffInMinutes < 60) return `منذ ${diffInMinutes} دقيقة`;
+    if (diffInMinutes < 1440) return `منذ ${Math.floor(diffInMinutes / 60)} ساعة`;
+    return `منذ ${Math.floor(diffInMinutes / 1440)} يوم`;
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'confirmed': return 'bg-emerald-500';
+      case 'pending': return 'bg-yellow-500';
+      case 'cancelled': return 'bg-red-500';
+      default: return 'bg-blue-500';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'confirmed': return 'مؤكد';
+      case 'pending': return 'في الانتظار';
+      case 'cancelled': return 'ملغي';
+      default: return 'غير محدد';
+    }
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <h2 className="text-3xl font-bold text-white mb-6">الطلبات</h2>
+        <div className="flex items-center justify-center h-64">
+          <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+          <span className="text-white/60 mr-3">جارِ تحميل الطلبات...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-xl font-semibold text-white">الطلبات الأخيرة</h3>
-        <button className="px-4 py-2 bg-blue-500/20 text-blue-300 rounded-lg border border-blue-500/30 hover:bg-blue-500/30 transition-colors">
-          عرض الكل
+        <h2 className="text-3xl font-bold text-white">الطلبات</h2>
+        <button
+          onClick={loadOrders}
+          disabled={loading}
+          className="px-4 py-2 bg-blue-500/20 text-blue-300 rounded-lg border border-blue-500/30 hover:bg-blue-500/30 transition-colors flex items-center gap-2"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          تحديث الطلبات
         </button>
       </div>
-      
-      <div className="space-y-4">
-        <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">AM</span>
-            </div>
-            <div>
-              <p className="text-white font-medium">أحمد محمد</p>
-              <p className="text-white/60 text-sm">Netflix Premium</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <CurrencyDisplay price={12.99} originalCurrency="USD" className="text-white font-semibold" />
-            <p className="text-white/60 text-sm">منذ 5 دقائق</p>
-          </div>
+      <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-semibold text-white">الطلبات الأخيرة</h3>
+          <button className="px-4 py-2 bg-blue-500/20 text-blue-300 rounded-lg border border-blue-500/30 hover:bg-blue-500/30 transition-colors">
+            عرض الكل
+          </button>
         </div>
         
-        <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-blue-500 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">SM</span>
+        <div className="space-y-4">
+          {orders.length > 0 ? (
+            orders.map((order) => (
+              <div key={order.id} className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getStatusColor(order.status)}`}>
+                    <span className="text-white font-bold text-sm">
+                      {order.customerName?.charAt(0) || 'ع'}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-white font-medium">{order.customerName || 'عميل غير محدد'}</p>
+                    <p className="text-white/60 text-sm">
+                      {order.productName || 'منتج غير محدد'}
+                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        order.status === 'confirmed' ? 'bg-emerald-500/20 text-emerald-300' :
+                        order.status === 'pending' ? 'bg-yellow-500/20 text-yellow-300' :
+                        'bg-red-500/20 text-red-300'
+                      }`}>
+                        {getStatusText(order.status)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <CurrencyDisplay 
+                    price={order.totalAmount} 
+                    originalCurrency="SAR" 
+                    className="text-white font-semibold" 
+                  />
+                  <p className="text-white/60 text-sm">{formatTimeAgo(order.createdAt)}</p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-8">
+              <Package className="w-16 h-16 text-white/30 mx-auto mb-4" />
+              <p className="text-white/60">لا توجد طلبات حالياً</p>
             </div>
-            <div>
-              <p className="text-white font-medium">سارة أحمد</p>
-              <p className="text-white/60 text-sm">Spotify Premium</p>
-            </div>
-          </div>
-          <div className="text-right">
-            <CurrencyDisplay price={9.99} originalCurrency="USD" className="text-white font-semibold" />
-            <p className="text-white/60 text-sm">منذ 15 دقيقة</p>
-          </div>
+          )}
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 // Messages Tab Component
 export const MessagesTab = ({ notifications }: { notifications: any[] }) => (
@@ -465,6 +1156,11 @@ export const SettingsTab = () => {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* SEO Settings */}
+          {activeSettingsTab === 'seo' && (
+            <SEOTab />
           )}
 
                   {/* Social Media Settings */}

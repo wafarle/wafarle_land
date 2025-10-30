@@ -1,10 +1,11 @@
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { getAnalytics } from 'firebase/analytics';
+import { getMessaging, getToken, onMessage, Messaging } from 'firebase/messaging';
 
 // Check if Firebase should be enabled (set this to false during development if Firebase isn't set up)
-export const FIREBASE_ENABLED = false; // Temporarily disabled to avoid errors
+export const FIREBASE_ENABLED = true; // Re-enabled for production use
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyADXAZf6_DAgya_HcwRYQvNxo1lUFu4LqE",
@@ -19,6 +20,8 @@ const firebaseConfig = {
 let app: any;
 let db: any;
 let auth: any;
+let googleProvider: any;
+let messaging: Messaging | null = null;
 
 // Only initialize Firebase if enabled
 if (FIREBASE_ENABLED) {
@@ -26,13 +29,30 @@ if (FIREBASE_ENABLED) {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     auth = getAuth(app);
+    googleProvider = new GoogleAuthProvider();
+    
+    // Configure Google provider
+    googleProvider.setCustomParameters({
+      prompt: 'select_account'
+    });
+
+    // Initialize Firebase Cloud Messaging (only in browser)
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      try {
+        messaging = getMessaging(app);
+        console.log('✅ Firebase Cloud Messaging initialized');
+      } catch (error) {
+        console.warn('Firebase Messaging initialization error:', error);
+        console.log('Push notifications will not be available');
+      }
+    }
   } catch (error) {
     console.error('Firebase initialization error:', error);
     console.log('Falling back to mock mode');
   }
 }
 
-export { app, db, auth };
+export { app, db, auth, googleProvider, messaging };
 
 // Initialize Analytics only in browser environment and if Firebase is enabled
 let analytics;
@@ -56,6 +76,8 @@ export interface ProductOption {
   description?: string; // وصف إضافي للخيار
 }
 
+export type ProductType = 'digital' | 'physical' | 'download' | 'service';
+
 export interface Product {
   id: string;
   name: string;
@@ -72,6 +94,26 @@ export interface Product {
   hasOptions?: boolean; // هل المنتج له خيارات متعددة
   options?: ProductOption[]; // خيارات الاشتراك المختلفة
   defaultOptionId?: string; // الخيار الافتراضي
+  // حقول التقييمات
+  reviewsCount?: number; // عدد التقييمات
+  averageRating?: number; // متوسط التقييم
+  // نوع المنتج
+  productType?: ProductType; // نوع المنتج: رقمي، ملموس، تنزيل، خدمة
+  // حقول خاصة بالمنتج الملموس
+  weight?: number; // الوزن بالكيلوجرام
+  dimensions?: string; // الأبعاد (مثل: 10x20x30 سم)
+  requiresShipping?: boolean; // هل يحتاج شحن
+  // حقول خاصة بالمنتج الرقمي/التنزيل
+  downloadLink?: string; // رابط التحميل
+  downloadExpiryDays?: number; // عدد الأيام المتاحة للتحميل
+  // حقول خاصة بالخدمة
+  serviceDuration?: string; // مدة الخدمة (مثل: "ساعتان", "يوم واحد")
+  serviceDetails?: string; // تفاصيل إضافية للخدمة
+  // Inventory Management
+  stockManagementEnabled?: boolean; // تفعيل إدارة المخزون
+  stock?: number; // الكمية المتاحة في المخزون
+  lowStockThreshold?: number; // الحد الأدنى لتنبيه المخزون (افتراضي: 10)
+  outOfStock?: boolean; // هل المنتج نفد من المخزون
 }
 
 export interface Testimonial {
@@ -88,6 +130,24 @@ export interface ContactMessage {
   email: string;
   message: string;
   createdAt: Date;
+}
+
+export interface SubscriptionReview {
+  id: string;
+  subscriptionId: string;
+  customerId: string;
+  customerEmail: string;
+  customerName: string;
+  productId: string;
+  productName: string;
+  rating: number; // 1-5 stars
+  title: string;
+  comment: string;
+  isVerified: boolean; // true if customer actually used the subscription
+  helpful: number; // number of helpful votes
+  createdAt: Date;
+  updatedAt: Date;
+  status: 'pending' | 'approved' | 'rejected';
 }
 
 export interface Customer {
@@ -110,6 +170,26 @@ export interface Customer {
   notes?: string;
   tags?: string[];
   preferredPaymentMethod?: 'cash' | 'card' | 'bank_transfer' | 'digital_wallet';
+  authProvider?: 'email' | 'google' | 'facebook' | 'apple';
+  // Loyalty points
+  loyaltyPoints?: number; // نقاط الولاء
+  totalLoyaltyPointsEarned?: number; // إجمالي النقاط المكتسبة
+  totalLoyaltyPointsRedeemed?: number; // إجمالي النقاط المستخدمة
+  loyaltyTier?: 'bronze' | 'silver' | 'gold' | 'platinum'; // فئة الولاء
+}
+
+export type StaffRole = 'super_admin' | 'admin' | 'manager' | 'support';
+
+export interface StaffUser {
+  uid: string; // معرفه داخل Firebase Auth
+  email: string;
+  name: string;
+  role: StaffRole;
+  avatar?: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  lastLoginAt?: Date;
 }
 
 export interface Order {
@@ -135,6 +215,34 @@ export interface Order {
   subscriptionDurationMonths?: number;
   subscriptionStatus?: 'active' | 'expired' | 'cancelled' | 'pending';
   autoRenewal?: boolean;
+  // Shipping and download fields
+  shippingAddress?: string; // العنوان للشحن (للمنتجات الملموسة)
+  downloadLink?: string; // رابط التحميل (للمنتجات الرقمية/التنزيل)
+  productType?: ProductType; // نوع المنتج
+  shippingStatus?: 'pending_shipping' | 'prepared' | 'shipped' | 'in_transit' | 'delivered'; // حالة الشحن
+  shippingTrackingNumber?: string; // رقم تتبع الشحن
+  shippedAt?: Date; // تاريخ الشحن
+  // Discount code fields
+  discountCode?: string; // كود الخصم المستخدم
+  discountAmount?: number; // قيمة الخصم المطبقة
+  originalAmount?: number; // المبلغ الأصلي قبل الخصم
+  // Invoice fields
+  invoiceNumber?: string; // رقم الفاتورة التسلسلي
+  invoiceGeneratedAt?: Date; // تاريخ توليد الفاتورة
+  invoiceSentAt?: Date; // تاريخ إرسال الفاتورة
+  // Payment gateway fields
+  paymentGateway?: 'paypal' | 'stripe' | 'moyasar' | 'manual'; // بوابة الدفع المستخدمة
+  paymentGatewayTransactionId?: string; // رقم المعاملة من البوابة
+  paymentGatewayOrderId?: string; // رقم الطلب في البوابة
+  // Return and refund fields
+  returnStatus?: 'none' | 'requested' | 'approved' | 'rejected' | 'returned' | 'exchanged'; // حالة الإرجاع
+  returnRequestedAt?: Date; // تاريخ طلب الإرجاع
+  returnReason?: string; // سبب الإرجاع
+  returnApprovedAt?: Date; // تاريخ الموافقة على الإرجاع
+  returnCompletedAt?: Date; // تاريخ إكمال الإرجاع
+  refundAmount?: number; // مبلغ الاسترجاع
+  refundMethod?: 'original' | 'store_credit' | 'bank_transfer'; // طريقة الاسترجاع
+  refundCompletedAt?: Date; // تاريخ إكمال الاسترجاع
 }
 
 // New Subscription interface
@@ -224,10 +332,36 @@ export interface BlogPost {
   seoTitle?: string;
   seoDescription?: string;
   seoKeywords?: string[];
+  seoImage?: string;
+  seoAlt?: string;
+  canonicalUrl?: string;
+  robotsIndex?: boolean;
+  robotsFollow?: boolean;
   seo?: {
     title?: string;
     description?: string;
     keywords?: string[];
+    image?: string;
+    alt?: string;
+    canonicalUrl?: string;
+    robotsIndex?: boolean;
+    robotsFollow?: boolean;
+    structuredData?: {
+      article?: {
+        headline?: string;
+        description?: string;
+        image?: string;
+        author?: string;
+        publisher?: string;
+        datePublished?: string;
+        dateModified?: string;
+        mainEntityOfPage?: string;
+      };
+      breadcrumb?: {
+        name: string;
+        item: string;
+      }[];
+    };
   };
   // Additional fields
   readingTime: number; // in minutes
@@ -272,4 +406,44 @@ export interface BlogComment {
   userAgent: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// Discount Code interface
+export interface DiscountCode {
+  id: string;
+  code: string; // كود الخصم (مثل: REVIEW10)
+  type: 'percentage' | 'fixed'; // نوع الخصم: نسبة مئوية أو مبلغ ثابت
+  value: number; // قيمة الخصم (نسبة مئوية أو مبلغ)
+  description?: string; // وصف الكود
+  minPurchaseAmount?: number; // الحد الأدنى للشراء
+  maxDiscountAmount?: number; // الحد الأقصى للخصم (للكوبونات نسبة مئوية)
+  usageLimit?: number; // الحد الأقصى لعدد الاستخدامات
+  usedCount: number; // عدد مرات الاستخدام الحالية
+  usageLimitPerCustomer?: number; // حد الاستخدام لكل عميل
+  validFrom: Date; // تاريخ بدء الصلاحية
+  validTo: Date; // تاريخ انتهاء الصلاحية
+  isActive: boolean; // حالة الكود (نشط/معطل)
+  applicableProductIds?: string[]; // منتجات محددة فقط (فارغ = جميع المنتجات)
+  applicableCategories?: string[]; // فئات محددة فقط
+  excludeProductIds?: string[]; // منتجات مستثناة من الخصم
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy: string; // من أنشأ الكود
+  // Advanced features
+  priority?: number; // أولوية الكوبون (1 = أعلى أولوية، يتم تطبيقه أولاً)
+  stackable?: boolean; // هل يمكن استخدامه مع كوبونات أخرى
+  autoApply?: boolean; // هل يتم تطبيقه تلقائياً
+  loyaltyTierOnly?: 'bronze' | 'silver' | 'gold' | 'platinum'; // مخصص لفئة ولاء محددة
+  bulkDiscount?: {
+    enabled: boolean; // خصم على الكمية
+    tiers: Array<{ minQuantity: number; discount: number }>; // مستويات الخصم
+  };
+  minimumItems?: number; // الحد الأدنى لعدد المنتجات
+  freeShipping?: boolean; // شحن مجاني
+  buyXGetY?: {
+    enabled: boolean;
+    buyQuantity: number;
+    getQuantity: number;
+    productId?: string; // منتج معين أو أي منتج
+  };
 }

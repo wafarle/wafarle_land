@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ExternalLink, Star, Clock, Shield, Zap, ShoppingCart } from 'lucide-react';
+import { ExternalLink, Star, Clock, Shield, Zap, ShoppingCart, Eye, Package, AlertCircle, X } from 'lucide-react';
 import { Product } from '@/lib/firebase';
-import { getProducts } from '@/lib/database';
+import { getProducts, updateAllProductsReviewStats, addSampleReviews } from '@/lib/database';
 import CurrencyDisplay from './CurrencyDisplay';
 import OrderForm from './OrderForm';
+import QuickViewModal from './QuickViewModal';
 
 const Products = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -14,6 +15,8 @@ const Products = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showOrderForm, setShowOrderForm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [showQuickView, setShowQuickView] = useState(false);
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
 
   const categories = [
     { id: 'all', name: 'الكل', icon: '🌟' },
@@ -36,6 +39,8 @@ const Products = () => {
         category: 'streaming',
         discount: '50%',
         rating: 4.9,
+        averageRating: 4.9,
+        reviewsCount: 25,
         features: ['4K Ultra HD', 'مشاهدة متعددة الأجهزة', 'تحميل للمشاهدة لاحقاً'],
       },
       {
@@ -49,6 +54,8 @@ const Products = () => {
         category: 'music',
         discount: '40%',
         rating: 4.8,
+        averageRating: 4.8,
+        reviewsCount: 18,
         features: ['بدون إعلانات', 'تحميل للمشاهدة لاحقاً', 'جودة عالية'],
       },
       {
@@ -62,6 +69,8 @@ const Products = () => {
         category: 'streaming',
         discount: '35%',
         rating: 4.7,
+        averageRating: 4.7,
+        reviewsCount: 12,
         features: ['محتوى عربي حصري', 'مسلسلات جديدة', 'أفلام عربية'],
       },
       {
@@ -75,6 +84,8 @@ const Products = () => {
         category: 'streaming',
         discount: '45%',
         rating: 4.9,
+        averageRating: 4.9,
+        reviewsCount: 22,
         features: ['محتوى Disney حصري', 'أفلام Marvel', 'مسلسلات Star Wars'],
       },
       {
@@ -88,6 +99,8 @@ const Products = () => {
         category: 'music',
         discount: '30%',
         rating: 4.6,
+        averageRating: 4.6,
+        reviewsCount: 15,
         features: ['مكتبة ضخمة', 'جودة Lossless', 'تكامل مع Apple'],
       },
       {
@@ -101,6 +114,8 @@ const Products = () => {
         category: 'productivity',
         discount: '60%',
         rating: 4.8,
+        averageRating: 4.8,
+        reviewsCount: 8,
         features: ['Photoshop', 'Illustrator', 'Premiere Pro', 'After Effects'],
       },
     ];
@@ -108,6 +123,10 @@ const Products = () => {
     // Load real products from database
     const loadProducts = async () => {
       try {
+        // First, update all products review stats
+        await updateAllProductsReviewStats();
+        
+        // Then load products with updated stats
         const productsData = await getProducts();
         setProducts(productsData);
       } catch (error) {
@@ -128,10 +147,22 @@ const Products = () => {
     setShowOrderForm(true);
   };
 
+  // Handle quick view button click
+  const handleQuickViewClick = (product: Product) => {
+    setQuickViewProduct(product);
+    setShowQuickView(true);
+  };
+
   // Close order form
   const handleCloseOrderForm = () => {
     setShowOrderForm(false);
     setSelectedProduct(null);
+  };
+
+  // Close quick view
+  const handleCloseQuickView = () => {
+    setShowQuickView(false);
+    setQuickViewProduct(null);
   };
 
   const filteredProducts = selectedCategory === 'all' 
@@ -168,6 +199,27 @@ const Products = () => {
           <p className="text-base md:text-xl text-gray-600 max-w-3xl mx-auto px-4">
             اكتشف مجموعة واسعة من خدمات الاشتراكات التي نقدمها بأسعار تنافسية وجودة عالية
           </p>
+          
+          {/* Add Sample Reviews Button for Testing */}
+          <div className="mt-4">
+            <button
+              onClick={async () => {
+                try {
+                  await addSampleReviews();
+                  await updateAllProductsReviewStats();
+                  const updatedProducts = await getProducts();
+                  setProducts(updatedProducts);
+                  alert('تم إضافة التقييمات الوهمية وتحديث الإحصائيات بنجاح!');
+                } catch (error) {
+                  console.error('Error adding sample reviews:', error);
+                  alert('حدث خطأ في إضافة التقييمات الوهمية');
+                }
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+            >
+              إضافة تقييمات وهمية للاختبار
+            </button>
+          </div>
         </motion.div>
 
         {/* Category Filter */}
@@ -222,10 +274,35 @@ const Products = () => {
                   </div>
                 )}
 
+                {/* Stock Status Badge - For Physical Products */}
+                {product.productType === 'physical' && product.stockManagementEnabled && (
+                  <div className="absolute bottom-4 right-4">
+                    {product.outOfStock || (product.stock || 0) <= 0 ? (
+                      <div className="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                        <X className="w-3 h-3" />
+                        نفد من المخزون
+                      </div>
+                    ) : (product.stock || 0) <= (product.lowStockThreshold || 10) ? (
+                      <div className="bg-yellow-500 text-white px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" />
+                        آخر {product.stock} قطعة
+                      </div>
+                    ) : (
+                      <div className="bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                        <Package className="w-3 h-3" />
+                        متوفر ({product.stock})
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Rating */}
                 <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full flex items-center gap-1">
                   <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                  <span className="text-sm font-medium">{product.rating}</span>
+                  <span className="text-sm font-medium">{product.averageRating || product.rating || 0}</span>
+                  {product.reviewsCount && product.reviewsCount > 0 && (
+                    <span className="text-xs text-gray-500">({product.reviewsCount})</span>
+                  )}
                 </div>
               </div>
 
@@ -263,21 +340,33 @@ const Products = () => {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => handleQuickViewClick(product)}
+                      className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-3 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-1 text-xs"
+                    >
+                      <Eye className="w-3 h-3" />
+                      عرض سريع
+                    </button>
                     <button
                       onClick={() => handleOrderClick(product)}
-                      className="bg-gradient-to-r from-primary-gold to-yellow-500 hover:from-primary-gold/90 hover:to-yellow-500/90 text-white px-4 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 text-sm"
+                      disabled={product.productType === 'physical' && product.stockManagementEnabled && (product.outOfStock || (product.stock || 0) <= 0)}
+                      className={`px-3 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-1 text-xs ${
+                        product.productType === 'physical' && product.stockManagementEnabled && (product.outOfStock || (product.stock || 0) <= 0)
+                          ? 'bg-gray-400 text-white cursor-not-allowed opacity-50'
+                          : 'bg-gradient-to-r from-primary-gold to-yellow-500 hover:from-primary-gold/90 hover:to-yellow-500/90 text-white'
+                      }`}
                     >
-                      <ShoppingCart className="w-4 h-4" />
-                      اطلب الآن
+                      <ShoppingCart className="w-3 h-3" />
+                      {product.productType === 'physical' && product.stockManagementEnabled && (product.outOfStock || (product.stock || 0) <= 0) ? 'نفد' : 'اطلب الآن'}
                     </button>
                     <a
                       href={product.externalLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="bg-gradient-to-r from-primary-dark-navy to-blue-800 hover:from-primary-dark-navy/90 hover:to-blue-800/90 text-white px-4 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 text-sm"
+                      className="bg-gradient-to-r from-primary-dark-navy to-blue-800 hover:from-primary-dark-navy/90 hover:to-blue-800/90 text-white px-3 py-3 rounded-xl font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-1 text-xs"
                     >
-                      <ExternalLink className="w-4 h-4" />
+                      <ExternalLink className="w-3 h-3" />
                       اشتر مباشرة
                     </a>
                   </div>
@@ -319,6 +408,19 @@ const Products = () => {
           product={selectedProduct}
           isOpen={showOrderForm}
           onClose={handleCloseOrderForm}
+        />
+      )}
+
+      {/* Quick View Modal */}
+      {showQuickView && quickViewProduct && (
+        <QuickViewModal
+          product={quickViewProduct}
+          onClose={handleCloseQuickView}
+          onOrderClick={() => {
+            setShowQuickView(false);
+            setSelectedProduct(quickViewProduct);
+            setShowOrderForm(true);
+          }}
         />
       )}
     </section>

@@ -166,6 +166,21 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
     const { selectedProduct, selectedDuration, selectedPlan } = subscriptionFlow;
     
     if (confirmed && selectedProduct && selectedDuration) {
+      // التحقق من نوع المنتج: المنتجات الملموسة أو التي تحتاج تنزيل لا يمكن أن تكون اشتراكات
+      if (selectedProduct.productType === 'physical' || selectedProduct.productType === 'download') {
+        if (conversationId) {
+          await sendChatMessage(
+            conversationId,
+            `❌ عذراً، المنتج "${selectedProduct.name}" من نوع ${selectedProduct.productType === 'physical' ? 'منتج ملموس' : 'منتج يحتاج تنزيل'} ولا يمكن إنشاء اشتراك له.\n\n💡 يمكنك طلب هذا المنتج من صفحة المنتجات مباشرة.`,
+            'support',
+            'نظام الدعم',
+            undefined
+          );
+        }
+        setSubscriptionFlow({ active: false, step: 'product' });
+        return;
+      }
+
       try {
         // Calculate correct price based on product options
         let finalPrice: number;
@@ -227,7 +242,7 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
           productId: selectedProduct.id,
           productName: selectedProduct.name,
           productImage: selectedProduct.image,
-          planType: selectedPlan || 'شهري',
+          planType: selectedPlan || 'monthly',
           price: finalPrice,
           startDate: startDate,
           endDate: endDate,
@@ -705,35 +720,49 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
       initial={{ opacity: 0, scale: 0.8, y: 100 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.8, y: 100 }}
-      className={`fixed bottom-6 left-6 z-50 bg-white rounded-xl shadow-2xl border overflow-hidden ${
+      className={`fixed bottom-6 left-6 z-50 bg-white rounded-2xl shadow-2xl border border-gray-200/50 backdrop-blur-sm overflow-hidden ${
         isMinimized ? 'w-80 h-16' : 'w-96 h-[600px]'
-      } transition-all duration-300`}
+      } transition-all duration-300 hover:shadow-3xl`}
+      style={{
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.05)'
+      }}
     >
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-            <Headphones className="w-4 h-4" />
+      <div className="bg-gradient-to-r from-slate-800 via-slate-700 to-slate-600 text-white p-4 flex items-center justify-between relative overflow-hidden">
+        {/* Background pattern */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-white/20 to-transparent"></div>
+          <div className="absolute -top-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
+          <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-white/5 rounded-full blur-2xl"></div>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-full blur-3xl"></div>
+        </div>
+        
+        <div className="flex items-center gap-3 relative z-10">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center backdrop-blur-sm border border-white/30 shadow-lg">
+            <Headphones className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-semibold">دعم العملاء</h3>
-            <div className="flex items-center gap-2 text-xs text-blue-100">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span>{onlineAgents} موظف متاح الآن</span>
+            <h3 className="font-bold text-lg text-white">دعم العملاء</h3>
+            <div className="flex items-center gap-2 text-sm text-slate-200">
+              <div className="relative">
+                <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></div>
+                <div className="absolute inset-0 w-2 h-2 bg-emerald-400 rounded-full animate-ping opacity-75"></div>
+              </div>
+              <span className="font-medium">{onlineAgents} موظف متاح الآن</span>
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 relative z-10">
           <button
             onClick={() => setIsMinimized(!isMinimized)}
-            className="p-1 hover:bg-white/20 rounded transition-colors"
+            className="p-2 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-110 hover:bg-slate-600/50"
           >
             <Minimize2 className="w-4 h-4" />
           </button>
           <button
             onClick={() => setIsOpen(false)}
-            className="p-1 hover:bg-white/20 rounded transition-colors"
+            className="p-2 hover:bg-white/20 rounded-lg transition-all duration-200 hover:scale-110 hover:bg-red-500/50"
           >
             <X className="w-4 h-4" />
           </button>
@@ -743,13 +772,13 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
       {!isMinimized && (
         <>
           {/* Messages */}
-          <div className="flex-1 p-4 overflow-y-auto h-96 bg-gray-50">
-            <div className="space-y-4">
+          <div className="flex-1 p-4 overflow-y-auto h-96 bg-gradient-to-b from-slate-50 to-slate-100/50">
+            <div className="space-y-5">
               {loading && messages.length === 0 && (
                 <div className="flex items-center justify-center py-8">
-                  <div className="flex items-center gap-3 text-gray-500">
-                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent"></div>
-                    <span className="text-sm">جاري تحضير المحادثة...</span>
+                  <div className="flex items-center gap-3 text-slate-500">
+                    <div className="animate-spin rounded-full h-6 w-6 border-2 border-slate-500 border-t-transparent"></div>
+                    <span className="text-sm font-medium">جاري تحضير المحادثة...</span>
                   </div>
                 </div>
               )}
@@ -757,41 +786,48 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
               {messages.map((message) => (
                 <motion.div
                   key={message.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
                   className={`flex ${message.sender === 'customer' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className={`flex gap-2 max-w-[80%] ${message.sender === 'customer' ? 'flex-row-reverse' : ''}`}>
+                  <div className={`flex gap-3 max-w-[85%] ${message.sender === 'customer' ? 'flex-row-reverse' : ''}`}>
                     {/* Avatar */}
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg ${
                       message.sender === 'customer' 
-                        ? 'bg-blue-500 text-white' 
-                        : 'bg-purple-500 text-white'
+                        ? 'bg-gradient-to-br from-slate-600 to-slate-700 text-white' 
+                        : 'bg-gradient-to-br from-blue-500 to-purple-600 text-white'
                     }`}>
                       {message.sender === 'customer' ? (
-                        <User className="w-4 h-4" />
+                        <User className="w-5 h-5" />
                       ) : (
-                        <Bot className="w-4 h-4" />
+                        <Bot className="w-5 h-5" />
                       )}
                     </div>
 
                     {/* Message content */}
                     <div className={`${message.sender === 'customer' ? 'text-right' : 'text-right'}`}>
                       {message.sender === 'support' && message.senderName && (
-                        <div className="text-xs text-gray-500 mb-1">{message.senderName}</div>
+                        <div className="text-xs text-slate-500 mb-1 font-medium">{message.senderName}</div>
                       )}
                       
-                      <div className={`inline-block px-4 py-2 rounded-2xl ${
+                      <div className={`inline-block px-4 py-3 rounded-2xl shadow-sm ${
                         message.sender === 'customer'
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-white text-gray-900 border'
-                      }`}>
-                        <p className="text-sm">{message.content}</p>
+                          ? 'bg-gradient-to-r from-slate-600 to-slate-700 text-white'
+                          : 'bg-white text-slate-900 border border-slate-200'
+                      }`}
+                      style={{
+                        boxShadow: message.sender === 'customer' 
+                          ? '0 4px 12px rgba(71, 85, 105, 0.3)' 
+                          : '0 2px 8px rgba(0, 0, 0, 0.1)'
+                      }}>
+                        <p className="text-sm leading-relaxed">{message.content}</p>
                       </div>
 
-                      <div className={`flex items-center gap-1 mt-1 text-xs text-gray-500 ${
+                      <div className={`flex items-center gap-1 mt-2 text-xs text-slate-500 ${
                         message.sender === 'customer' ? 'justify-end' : 'justify-start'
                       }`}>
+                        <Clock className="w-3 h-3" />
                         <span>{formatTime(message.timestamp)}</span>
                         {message.sender === 'customer' && getMessageStatusIcon(message.status)}
                       </div>
@@ -803,19 +839,20 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
               {/* Typing indicator */}
               {isTyping && (
                 <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
+                  initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
                   className="flex justify-start"
                 >
-                  <div className="flex gap-2 max-w-[80%]">
-                    <div className="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center">
-                      <Bot className="w-4 h-4" />
+                  <div className="flex gap-3 max-w-[85%]">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-full flex items-center justify-center shadow-lg">
+                      <Bot className="w-5 h-5" />
                     </div>
-                    <div className="bg-white border rounded-2xl px-4 py-3">
+                    <div className="bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
                       <div className="flex gap-1">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       </div>
                     </div>
                   </div>
@@ -828,67 +865,72 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
 
           {/* Interactive Invoice Flow */}
           {invoiceFlow.active && (
-            <div className="p-4 bg-green-50 border-t border-green-200">
+            <div className="p-4 bg-gradient-to-r from-emerald-50 to-green-50 border-t border-emerald-200/50">
               {invoiceFlow.step === 'loading' && (
-                <div className="text-center py-4">
-                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-green-500 border-t-transparent mx-auto mb-3"></div>
-                  <p className="text-green-800 font-medium">جاري البحث عن طلباتك...</p>
+                <div className="text-center py-6">
+                  <div className="animate-spin rounded-full h-10 w-10 border-3 border-emerald-500 border-t-transparent mx-auto mb-4"></div>
+                  <p className="text-emerald-800 font-semibold text-lg">جاري البحث عن طلباتك...</p>
+                  <p className="text-emerald-600 text-sm mt-1">يرجى الانتظار قليلاً</p>
                 </div>
               )}
 
               {invoiceFlow.step === 'selection' && invoiceFlow.customerOrders && (
-                <div className="space-y-3">
-                  <h4 className="font-medium text-green-900 mb-3 flex items-center">
-                    <Receipt className="w-4 h-4 ml-2" />
+                <div className="space-y-4">
+                  <h4 className="font-bold text-emerald-900 mb-4 flex items-center text-lg">
+                    <Receipt className="w-5 h-5 ml-2" />
                     اختر الطلب للحصول على فاتورته:
                   </h4>
-                  <div className="grid gap-3 max-h-60 overflow-y-auto">
+                  <div className="grid gap-3 max-h-60 overflow-y-auto scrollbar-hide">
                     {invoiceFlow.customerOrders.map(order => (
-                      <button
+                      <motion.button
                         key={order.id}
                         onClick={() => handleOrderSelection(order)}
-                        className="text-right p-3 bg-white border border-green-200 rounded-lg hover:bg-green-50 transition-colors shadow-sm"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="text-right p-4 bg-white border border-emerald-200 rounded-xl hover:bg-emerald-50 hover:border-emerald-300 transition-all duration-200 shadow-sm hover:shadow-md"
                       >
                         <div className="flex justify-between items-center">
                           <div className="text-right">
-                            <p className="font-medium text-gray-900 text-sm">
+                            <p className="font-bold text-slate-900 text-base">
                               طلب #{order.id.slice(-8)}
                             </p>
-                            <p className="text-xs text-gray-600">{order.productName}</p>
-                            <p className="text-xs text-green-600 mt-1">
+                            <p className="text-sm text-slate-600 mt-1">{order.productName}</p>
+                            <p className="text-sm text-emerald-600 mt-2 font-medium">
                               {order.createdAt.toLocaleDateString('ar-SA')}
                             </p>
                           </div>
                           <div className="text-left">
-                            <div className="text-green-600 font-bold text-sm">
+                            <div className="text-emerald-600 font-bold text-lg">
                               {order.totalAmount} ر.س
                             </div>
-                            <div className="flex items-center justify-end gap-1 mt-1">
-                              <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs">
+                            <div className="flex items-center justify-end gap-1 mt-2">
+                              <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-xs font-medium">
                                 مدفوع ✅
                               </span>
                             </div>
                           </div>
                         </div>
-                      </button>
+                      </motion.button>
                     ))}
                   </div>
-                  <button
+                  <motion.button
                     onClick={() => setInvoiceFlow({ active: false, step: 'loading' })}
-                    className="w-full mt-3 py-2 px-4 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full mt-4 py-3 px-4 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 transition-colors font-medium"
                   >
                     إلغاء
-                  </button>
+                  </motion.button>
                 </div>
               )}
 
               {invoiceFlow.step === 'generating' && (
-                <div className="text-center py-4">
+                <div className="text-center py-6">
                   <div className="animate-pulse">
-                    <FileText className="w-12 h-12 text-green-500 mx-auto mb-3" />
+                    <FileText className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
                   </div>
-                  <p className="text-green-800 font-medium">جاري إنشاء الفاتورة...</p>
-                  <p className="text-sm text-green-600 mt-1">يرجى الانتظار...</p>
+                  <p className="text-emerald-800 font-bold text-lg">جاري إنشاء الفاتورة...</p>
+                  <p className="text-sm text-emerald-600 mt-2">يرجى الانتظار...</p>
                 </div>
               )}
             </div>
@@ -896,82 +938,86 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
 
           {/* Interactive Subscription Flow */}
           {subscriptionFlow.active && (
-            <div className="p-4 bg-blue-50 border-t border-blue-200">
+            <div className="p-4 bg-gradient-to-r from-slate-50 to-blue-50 border-t border-slate-200/50">
               {subscriptionFlow.step === 'product' && (
-                <div className="space-y-2">
-                  <h4 className="font-medium text-blue-900 mb-3">اختر المنتج:</h4>
-                  <div className="grid gap-2">
+                <div className="space-y-4">
+                  <h4 className="font-bold text-slate-800 mb-4 text-lg">اختر المنتج:</h4>
+                  <div className="grid gap-3">
                     {products.map(product => (
-                      <button
+                      <motion.button
                         key={product.id}
                         onClick={() => handleProductSelection(product)}
-                        className="text-right p-3 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        className="text-right p-4 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 shadow-sm hover:shadow-md"
                       >
                         <div className="flex justify-between items-center">
                           <div className="text-right">
-                            <p className="font-medium text-gray-900">{product.name}</p>
-                            <p className="text-sm text-gray-600">{product.description}</p>
+                            <p className="font-bold text-slate-900 text-base">{product.name}</p>
+                            <p className="text-sm text-slate-600 mt-1">{product.description}</p>
                           </div>
-                          <div className="text-blue-600 font-bold">
+                          <div className="text-slate-600 font-bold text-lg">
                             {formatPrice(product.price)}/شهر
                           </div>
                         </div>
-                      </button>
+                      </motion.button>
                     ))}
                   </div>
                 </div>
               )}
 
               {subscriptionFlow.step === 'duration' && subscriptionFlow.selectedProduct && (
-                <div className="space-y-2">
-                  <h4 className="font-medium text-blue-900 mb-3">اختر مدة الاشتراك:</h4>
-                  <div className="grid gap-2">
+                <div className="space-y-4">
+                  <h4 className="font-bold text-blue-900 mb-4 text-lg">اختر مدة الاشتراك:</h4>
+                  <div className="grid gap-3">
                     {subscriptionFlow.selectedProduct.hasOptions && subscriptionFlow.selectedProduct.options ? (
                       // Use product options if available
                       subscriptionFlow.selectedProduct.options.map((option) => (
-                        <button
+                        <motion.button
                           key={option.id}
                           onClick={() => handleDurationSelection(option.duration, option.name)}
-                          className={`text-right p-3 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors ${
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          className={`text-right p-4 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 shadow-sm hover:shadow-md ${
                             option.isPopular ? 'ring-2 ring-blue-300 relative' : ''
                           }`}
                         >
                           {option.isPopular && (
-                            <div className="absolute -top-2 -right-2 bg-blue-500 text-white px-2 py-1 rounded-full text-xs font-bold">
+                            <div className="absolute -top-2 -right-2 bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-bold">
                               الأكثر شعبية
                             </div>
                           )}
                           <div className="flex justify-between items-center">
                             <div className="text-right">
-                              <p className="font-medium text-gray-900">{option.name} - {option.duration} شهر</p>
+                              <p className="font-bold text-gray-900 text-base">{option.name} - {option.duration} شهر</p>
                               {option.discount && option.discount > 0 && (
-                                <p className="text-sm text-green-600">خصم {option.discount}%</p>
+                                <p className="text-sm text-green-600 mt-1 font-medium">خصم {option.discount}%</p>
                               )}
                               {option.description && (
-                                <p className="text-xs text-gray-500 mt-1">{option.description}</p>
+                                <p className="text-xs text-gray-500 mt-2">{option.description}</p>
                               )}
                             </div>
                             <div className="text-left">
                               {option.originalPrice && option.originalPrice > option.price ? (
                                 <>
-                                  <div className="text-blue-600 font-bold">
+                                  <div className="text-blue-600 font-bold text-lg">
                                     {formatPrice(option.price)} <span className="text-xs text-gray-600">إجمالي</span>
                                   </div>
                                   <div className="text-xs text-gray-500 line-through">
                                     {formatPrice(option.originalPrice)} 
                                   </div>
-                                  <div className="text-xs text-green-600">
+                                  <div className="text-xs text-green-600 font-medium">
                                     وفر {formatPrice(option.originalPrice - option.price)}
                                   </div>
                                 </>
                               ) : (
-                                <div className="text-blue-600 font-bold">
+                                <div className="text-blue-600 font-bold text-lg">
                                   {formatPrice(option.price)} <span className="text-xs text-gray-600">إجمالي</span>
                                 </div>
                               )}
                             </div>
                           </div>
-                        </button>
+                        </motion.button>
                       ))
                     ) : (
                       // Fallback to default options if no product options exist
@@ -986,39 +1032,41 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
                         const discountedPrice = originalPrice * (1 - discount / 100);
                         
                         return (
-                          <button
+                          <motion.button
                             key={duration}
                             onClick={() => handleDurationSelection(duration, plan)}
-                            className="text-right p-3 bg-white border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            className="text-right p-4 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 shadow-sm hover:shadow-md"
                           >
                             <div className="flex justify-between items-center">
                               <div className="text-right">
-                                <p className="font-medium text-gray-900">{plan} - {duration} شهر</p>
+                                <p className="font-bold text-gray-900 text-base">{plan} - {duration} شهر</p>
                                 {discount > 0 && (
-                                  <p className="text-sm text-green-600">خصم {discount}%</p>
+                                  <p className="text-sm text-green-600 mt-1 font-medium">خصم {discount}%</p>
                                 )}
                               </div>
                               <div className="text-left">
                                 {discount > 0 ? (
                                   <>
-                                    <div className="text-blue-600 font-bold">
+                                    <div className="text-blue-600 font-bold text-lg">
                                       {formatPrice(discountedPrice)} <span className="text-xs text-gray-600">إجمالي</span>
                                     </div>
                                     <div className="text-xs text-gray-500 line-through">
                                       {formatPrice(originalPrice)} 
                                     </div>
-                                    <div className="text-xs text-green-600">
+                                    <div className="text-xs text-green-600 font-medium">
                                       وفر {formatPrice(originalPrice - discountedPrice)}
                                     </div>
                                   </>
                                 ) : (
-                                  <div className="text-blue-600 font-bold">
+                                  <div className="text-blue-600 font-bold text-lg">
                                     {formatPrice(originalPrice)} <span className="text-xs text-gray-600">إجمالي</span>
                                   </div>
                                 )}
                               </div>
                             </div>
-                          </button>
+                          </motion.button>
                         );
                       })
                     )}
@@ -1027,12 +1075,12 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
               )}
 
               {subscriptionFlow.step === 'confirmation' && subscriptionFlow.selectedProduct && (
-                <div className="space-y-3">
-                  <h4 className="font-medium text-blue-900">تأكيد الاشتراك:</h4>
-                  <div className="bg-white p-3 rounded-lg border border-blue-200 text-right">
-                    <p><strong>المنتج:</strong> {subscriptionFlow.selectedProduct.name}</p>
-                    <p><strong>المدة:</strong> {subscriptionFlow.selectedDuration} شهر ({subscriptionFlow.selectedPlan})</p>
-                    <p><strong>السعر:</strong> {(() => {
+                <div className="space-y-4">
+                  <h4 className="font-bold text-slate-800 text-lg">تأكيد الاشتراك:</h4>
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 text-right shadow-sm">
+                    <p className="text-base mb-2"><strong>المنتج:</strong> {subscriptionFlow.selectedProduct.name}</p>
+                    <p className="text-base mb-2"><strong>المدة:</strong> {subscriptionFlow.selectedDuration} شهر ({subscriptionFlow.selectedPlan})</p>
+                    <p className="text-base"><strong>السعر:</strong> {(() => {
                       // Calculate the correct final price for display
                       if (subscriptionFlow.selectedProduct && subscriptionFlow.selectedDuration && subscriptionFlow.selectedPlan) {
                         let finalPrice: number;
@@ -1062,19 +1110,23 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
                       return formatPrice(0);
                     })()}</p>
                   </div>
-                  <div className="flex gap-2 pt-2">
-                    <button
+                  <div className="flex gap-3 pt-2">
+                    <motion.button
                       onClick={() => handleSubscriptionConfirmation(true)}
-                      className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="flex-1 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3 px-4 rounded-xl hover:from-emerald-600 hover:to-emerald-700 transition-all duration-200 font-bold text-lg shadow-lg hover:shadow-xl"
                     >
                       ✅ أؤكد الاشتراك
-                    </button>
-                    <button
+                    </motion.button>
+                    <motion.button
                       onClick={() => handleSubscriptionConfirmation(false)}
-                      className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors"
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="flex-1 bg-slate-300 text-slate-700 py-3 px-4 rounded-xl hover:bg-slate-400 transition-colors font-medium"
                     >
                       ❌ إلغاء
-                    </button>
+                    </motion.button>
                   </div>
                 </div>
               )}
@@ -1082,26 +1134,32 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
           )}
 
           {/* Quick responses */}
-          <div className="p-2 bg-gray-100 border-t">
-            <div className="flex gap-2 overflow-x-auto pb-2">
+          <div className="p-3 bg-gradient-to-r from-slate-50 to-slate-100/50 border-t border-slate-200/50">
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
               {quickResponses.map((response, index) => (
-                <button
+                <motion.button
                   key={index}
                   onClick={() => handleSendMessage(response)}
-                  className="flex-shrink-0 px-3 py-1 bg-white text-gray-700 text-xs rounded-full border hover:bg-gray-50 transition-colors"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="flex-shrink-0 px-4 py-2 bg-white text-slate-700 text-sm rounded-full border border-slate-200 hover:bg-slate-50 hover:border-slate-300 hover:text-slate-800 transition-all duration-200 shadow-sm hover:shadow-md font-medium"
                 >
                   {response}
-                </button>
+                </motion.button>
               ))}
             </div>
           </div>
 
           {/* Input */}
-          <div className="p-4 border-t bg-white">
+          <div className="p-4 border-t border-slate-200/50 bg-gradient-to-r from-white to-slate-50/50">
             <div className="flex gap-3">
-              <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
+              <motion.button 
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                className="p-2 text-slate-400 hover:text-yellow-500 transition-colors rounded-lg hover:bg-yellow-50"
+              >
                 <Smile className="w-5 h-5" />
-              </button>
+              </motion.button>
               
               <div className="flex-1 flex gap-2">
                 <input
@@ -1110,33 +1168,47 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
                   placeholder="اكتب رسالتك..."
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
+                  className="flex-1 px-4 py-3 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-slate-500 focus:border-transparent text-right bg-white shadow-sm hover:shadow-md transition-all duration-200 placeholder-slate-400"
                 />
                 
-                <button
+                <motion.button
                   onClick={() => handleSendMessage()}
                   disabled={!newMessage.trim() || loading || !conversationId}
-                  className="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="p-3 bg-gradient-to-r from-slate-600 to-slate-700 text-white rounded-2xl hover:from-slate-700 hover:to-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl disabled:hover:shadow-lg"
                 >
                   {loading ? (
                     <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
                   ) : (
                     <Send className="w-5 h-5" />
                   )}
-                </button>
+                </motion.button>
               </div>
             </div>
 
             {/* Contact options */}
-            <div className="flex justify-center gap-4 mt-3 pt-3 border-t border-gray-200">
-              <button className="flex items-center gap-2 text-xs text-gray-600 hover:text-blue-600 transition-colors">
-                <Phone className="w-3 h-3" />
+            <div className="flex justify-center gap-6 mt-4 pt-3 border-t border-slate-200/50">
+              <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-2 text-sm text-slate-600 hover:text-emerald-600 transition-colors font-medium"
+              >
+                <div className="p-2 bg-emerald-100 rounded-lg">
+                  <Phone className="w-4 h-4" />
+                </div>
                 <span>اتصال مباشر</span>
-              </button>
-              <button className="flex items-center gap-2 text-xs text-gray-600 hover:text-blue-600 transition-colors">
-                <Mail className="w-3 h-3" />
+              </motion.button>
+              <motion.button 
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600 transition-colors font-medium"
+              >
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Mail className="w-4 h-4" />
+                </div>
                 <span>إرسال إيميل</span>
-              </button>
+              </motion.button>
             </div>
           </div>
         </>

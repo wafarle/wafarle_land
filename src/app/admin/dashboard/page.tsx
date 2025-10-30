@@ -16,6 +16,15 @@ import CustomersTab from '@/components/admin/CustomersTab';
 import CurrencyTab from '@/components/admin/CurrencyTab';
 import ChatTab from '@/components/admin/ChatTab';
 import {BlogTab} from '@/components/admin/BlogTab';
+import {SEOTab} from '@/components/admin/SEOTab';
+import ReviewsTab from '@/components/admin/ReviewsTab';
+import {ReviewInviteTab} from '@/components/admin/ReviewInviteTab';
+import {CouponsTab} from '@/components/admin/CouponsTab';
+import {PaymentGatewaysTab} from '@/components/admin/PaymentGatewaysTab';
+import {ReturnsTab} from '@/components/admin/ReturnsTab';
+import {EmailNotificationsTab} from '@/components/admin/EmailNotificationsTab';
+import {LoyaltyProgramTab} from '@/components/admin/LoyaltyProgramTab';
+import {EmailServiceTab} from '@/components/admin/EmailServiceTab';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -67,7 +76,13 @@ import {
   ChevronRight,
   ChevronLeft,
   Menu,
-  X
+  X,
+  Gift,
+  Ticket,
+  CreditCard,
+  RotateCcw,
+  Mail,
+  Send
 } from 'lucide-react';
 import { Product } from '@/lib/firebase';
 
@@ -203,6 +218,15 @@ const Dashboard = () => {
     { id: 'chat', label: 'المحادثات', icon: MessageCircle, color: 'from-green-500 to-emerald-500', count: chatCount },
     { id: 'messages', label: 'الرسائل', icon: MessageSquare, color: 'from-pink-500 to-rose-500' },
     { id: 'currency', label: 'العملة', icon: DollarSign, color: 'from-yellow-500 to-orange-500' },
+    { id: 'seo', label: 'SEO', icon: Search, color: 'from-teal-500 to-cyan-500' },
+    { id: 'reviews', label: 'التقييمات', icon: Star, color: 'from-yellow-500 to-orange-500' },
+    { id: 'reviewInvite', label: 'دعوة التقييم', icon: Gift, color: 'from-pink-500 to-rose-500' },
+    { id: 'coupons', label: 'أكواد الخصم', icon: Ticket, color: 'from-green-500 to-emerald-500' },
+    { id: 'paymentGateways', label: 'بوابات الدفع', icon: CreditCard, color: 'from-indigo-500 to-blue-500' },
+    { id: 'returns', label: 'الإرجاع والاستبدال', icon: RotateCcw, color: 'from-orange-500 to-red-500' },
+    { id: 'emailNotifications', label: 'إشعارات البريد', icon: Mail, color: 'from-purple-500 to-pink-500' },
+    { id: 'emailService', label: 'خدمة البريد', icon: Send, color: 'from-cyan-500 to-blue-500' },
+    { id: 'loyalty', label: 'نقاط الولاء', icon: Crown, color: 'from-yellow-500 to-orange-500' },
     { id: 'settings', label: 'الإعدادات', icon: Settings, color: 'from-gray-500 to-slate-500' },
     { id: 'blog', label: 'المدونه', icon: Settings, color: 'from-gray-500 to-slate-500' }
   ];
@@ -485,6 +509,15 @@ const Dashboard = () => {
               {activeTab === 'chat' && <ChatTab onMessagesCountChange={setChatCount} />}
               {activeTab === 'messages' && <MessagesTab notifications={notifications} />}
               {activeTab === 'currency' && <CurrencyTab />}
+              {activeTab === 'seo' && <SEOTab />}
+              {activeTab === 'reviews' && <ReviewsTab />}
+              {activeTab === 'reviewInvite' && <ReviewInviteTab />}
+              {activeTab === 'coupons' && <CouponsTab />}
+              {activeTab === 'paymentGateways' && <PaymentGatewaysTab />}
+              {activeTab === 'returns' && <ReturnsTab />}
+              {activeTab === 'emailNotifications' && <EmailNotificationsTab />}
+              {activeTab === 'emailService' && <EmailServiceTab />}
+              {activeTab === 'loyalty' && <LoyaltyProgramTab />}
               {activeTab === 'settings' && <SettingsTab />}
               {activeTab === 'blog' && <BlogTab />}
             </div>
