@@ -40,71 +40,12 @@ export default function PaymentModal({
   const [step, setStep] = useState<'gateway' | 'processing' | 'success'>('gateway');
 
   // Available payment gateways
-  const availableGateways: Array<{
-    id: PaymentGateway;
-    name: string;
-    icon: string;
-    description: string;
-  }> = [
-    {
-      id: 'stripe',
-      name: 'Stripe',
-      icon: '💳',
-      description: 'بطاقة ائتمان / مدى / فيزا',
-    },
-    {
-      id: 'paypal',
-      name: 'PayPal',
-      icon: '🔵',
-      description: 'حساب PayPal',
-    },
-    {
-      id: 'moyasar',
-      name: 'Moyasar',
-      icon: '🇸🇦',
-      description: 'بوابة الدفع السعودية',
-    },
-    {
-      id: 'manual',
-      name: 'دفع يدوي',
-      icon: '💰',
-      description: 'حوالة بنكية أو نقد',
-    },
-  ].filter(gateway => {
-    if (gateway.id === 'manual') return true; // Always available
-    const pg = settings?.website?.paymentGateways?.[gateway.id];
-    const isEnabled = pg?.enabled;
-    
-    // For PayPal, also check if credentials are configured
-    if (gateway.id === 'paypal' && isEnabled) {
-      const hasCredentials = pg?.clientId && pg?.secretKey;
-      if (!hasCredentials) {
-        console.warn('⚠️ PayPal is enabled but credentials are not configured');
-        return false;
-      }
-    }
-    
-    // For Stripe, check if API key is configured
-    if (gateway.id === 'stripe' && isEnabled) {
-      const hasKey = pg?.secretKey || pg?.publishableKey;
-      if (!hasKey) {
-        console.warn('⚠️ Stripe is enabled but API key is not configured');
-        return false;
-      }
-    }
-    
-    // For Moyasar, check if API key is configured
-    if (gateway.id === 'moyasar' && isEnabled) {
-      const hasKey = pg?.secretKey || pg?.publishableKey;
-      if (!hasKey) {
-        console.warn('⚠️ Moyasar is enabled but API key is not configured');
-        return false;
-      }
-    }
-    
-    console.log(`🔍 Gateway ${gateway.id} check:`, { enabled: isEnabled, config: pg });
-    return isEnabled;
-  });
+  const availableGateways = [
+    { id: 'stripe', name: 'Stripe', icon: '💳', description: 'بطاقة ائتمان / مدى / فيزا' },
+    { id: 'paypal', name: 'PayPal', icon: '🔵', description: 'حساب PayPal' },
+    { id: 'moyasar', name: 'Moyasar', icon: '🇸🇦', description: 'بوابة الدفع السعودية' },
+    { id: 'manual', name: 'دفع يدوي', icon: '💰', description: 'حوالة بنكية أو نقد' }
+  ] as { id: PaymentGateway; name: string; icon: string; description: string }[];
 
   console.log('💳 Available gateways:', availableGateways.map(g => g.id));
 
@@ -166,13 +107,13 @@ export default function PaymentModal({
     // Check credentials based on gateway type and initialize
     try {
       if (gateway === 'paypal') {
-        if (!pg.clientId || !pg.secretKey) {
+        if (!('clientId' in pg) || !('secretKey' in pg) || !pg.clientId || !pg.secretKey) {
           setError('بيانات PayPal غير مكتملة. يرجى إعدادها من لوحة الأدمن.');
-          console.error('PayPal credentials missing:', { 
+          console.error('PayPal credentials missing:', {
             enabled: pg.enabled,
-            hasClientId: !!pg.clientId, 
-            hasSecretKey: !!pg.secretKey,
-            pg 
+            hasClientId: 'clientId' in pg ? !!pg.clientId : false,
+            hasSecretKey: 'secretKey' in pg ? !!pg.secretKey : false,
+            pg
           });
           setProcessing(false);
           return;
@@ -185,7 +126,7 @@ export default function PaymentModal({
         });
         console.log('✅ PayPal initialized successfully');
       } else if (gateway === 'stripe') {
-        const apiKey = pg.secretKey || pg.publishableKey;
+        const apiKey = ('secretKey' in pg ? pg.secretKey : undefined) || ('publishableKey' in pg ? pg.publishableKey : undefined);
         if (!apiKey) {
           setError('بيانات Stripe غير مكتملة. يرجى إعدادها من لوحة الأدمن.');
           console.error('Stripe API key missing');
@@ -199,7 +140,7 @@ export default function PaymentModal({
         });
         console.log('✅ Stripe initialized successfully');
       } else if (gateway === 'moyasar') {
-        const apiKey = pg.secretKey || pg.publishableKey;
+        const apiKey = ('secretKey' in pg ? pg.secretKey : undefined) || ('publishableKey' in pg ? pg.publishableKey : undefined);
         if (!apiKey) {
           setError('بيانات Moyasar غير مكتملة. يرجى إعدادها من لوحة الأدمن.');
           console.error('Moyasar API key missing');
@@ -458,17 +399,26 @@ export default function PaymentModal({
                           if (!pg?.enabled) return null;
                           
                           // Additional verification for credentials
-                          if (gateway.id === 'paypal' && (!pg.clientId || !pg.secretKey)) {
-                            console.warn('⚠️ PayPal button skipped - credentials missing');
-                            return null;
+                          if (gateway.id === 'paypal') {
+                            const isPayPal = 'clientId' in pg && 'secretKey' in pg;
+                            if (!isPayPal || !pg.clientId || !pg.secretKey) {
+                              console.warn('⚠️ PayPal button skipped - credentials missing');
+                              return null;
+                            }
                           }
-                          if (gateway.id === 'stripe' && !pg.secretKey && !pg.publishableKey) {
-                            console.warn('⚠️ Stripe button skipped - API key missing');
-                            return null;
+                          if (gateway.id === 'stripe') {
+                            const hasKey = ('publishableKey' in pg && pg.publishableKey) || ('secretKey' in pg && pg.secretKey);
+                            if (!hasKey) {
+                              console.warn('⚠️ Stripe button skipped - API key missing');
+                              return null;
+                            }
                           }
-                          if (gateway.id === 'moyasar' && !pg.secretKey && !pg.publishableKey) {
-                            console.warn('⚠️ Moyasar button skipped - API key missing');
-                            return null;
+                          if (gateway.id === 'moyasar') {
+                            const hasKey = ('secretKey' in pg && pg.secretKey) || ('publishableKey' in pg && pg.publishableKey);
+                            if (!hasKey) {
+                              console.warn('⚠️ Moyasar is enabled but API key is not configured');
+                              return null;
+                            }
                           }
                         }
 

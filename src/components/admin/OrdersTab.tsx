@@ -366,6 +366,15 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
     }
   };
 
+  // Generate and download invoice PDF
+  const handleGenerateInvoice = async (orderId: string) => {
+    try {
+      await downloadInvoicePDF(orderId);
+    } catch (error: any) {
+      alert(error.message || 'حدث خطأ في تحميل الفاتورة');
+    }
+  };
+
   // Print invoice
   const handlePrintInvoice = (order: Order) => {
     setSelectedOrder(order);
@@ -468,6 +477,16 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
   };
 
   const stats = getStats();
+
+  // Send invoice to email
+  const handleSendInvoiceEmail = async (orderId: string) => {
+    try {
+      await sendInvoiceEmail(orderId);
+      alert('تم إرسال الفاتورة إلى البريد الإلكتروني بنجاح!');
+    } catch (error: any) {
+      alert(error.message || 'حدث خطأ أثناء إرسال الفاتورة بالبريد');
+    }
+  };
 
   if (loading) {
     return (

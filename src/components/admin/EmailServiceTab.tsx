@@ -48,8 +48,9 @@ export const EmailServiceTab = () => {
     setLoading(true);
     try {
       await updateSettings({
+        ...settings,
         website: {
-          ...settings?.website,
+          ...settings.website,
           emailService: {
             provider: formData.provider as 'resend' | 'sendgrid' | 'ses' | 'nodemailer' | 'none',
             apiKey: formData.apiKey.trim(),
@@ -151,7 +152,7 @@ export const EmailServiceTab = () => {
         </label>
         <select
           value={formData.provider}
-          onChange={(e) => setFormData({ ...formData, provider: e.target.value })}
+          onChange={(e) => setFormData({ ...formData, provider: e.target.value as 'resend' | 'sendgrid' | 'ses' | 'nodemailer' | 'none' })}
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
         >
           <option value="resend">Resend (مُوصى به)</option>
