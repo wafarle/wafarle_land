@@ -32,7 +32,7 @@ const Hero = () => {
         const codes = await getDiscountCodes();
         const autoCodes = codes.filter(code => 
           code.autoApply && 
-          code.active &&
+          code.isActive &&
           (!code.validFrom || new Date(code.validFrom) <= new Date()) &&
           (!code.validUntil || new Date(code.validUntil) >= new Date())
         );
