@@ -122,7 +122,10 @@ export const CouponsTab = () => {
         bulkDiscount: code.bulkDiscount || { enabled: false, tiers: [] },
         minimumItems: code.minimumItems || 0,
         freeShipping: code.freeShipping || false,
-        buyXGetY: code.buyXGetY || { enabled: false, buyQuantity: 1, getQuantity: 1, productId: '' }
+        buyXGetY: code.buyXGetY ? {
+          ...code.buyXGetY,
+          productId: code.buyXGetY.productId ?? ''
+        } : { enabled: false, buyQuantity: 1, getQuantity: 1, productId: '' }
       });
     } else {
       setEditingCode(null);

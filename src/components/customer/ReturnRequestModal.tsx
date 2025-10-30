@@ -115,7 +115,7 @@ export default function ReturnRequestModal({ isOpen, onClose, order, onReturnReq
                   </div>
                   <div>
                     <span className="text-gray-500">المبلغ:</span>
-                    <span className="text-gray-900 mr-2 font-medium">{order.totalAmount} {order.currency || 'SAR'}</span>
+                    <span className="text-gray-900 mr-2 font-medium">{order.totalAmount} SAR</span>
                   </div>
                   <div>
                     <span className="text-gray-500">الكمية:</span>

@@ -34,7 +34,7 @@ const Hero = () => {
           code.autoApply && 
           code.isActive &&
           (!code.validFrom || new Date(code.validFrom) <= new Date()) &&
-          (!code.validUntil || new Date(code.validUntil) >= new Date())
+          (!code.validTo || new Date(code.validTo) >= new Date())
         );
         setAutoApplyCoupons(autoCodes.slice(0, 3)); // Show max 3 coupons
       } catch (error) {
@@ -95,10 +95,10 @@ const Hero = () => {
                       <span className="text-2xl">🎁</span>
                       <span className="font-mono font-bold text-yellow-600">{coupon.code}</span>
                     </div>
-                    {coupon.discountType === 'percentage' ? (
-                      <span className="text-lg font-bold text-green-600">{coupon.discountValue}%</span>
+                    {coupon.type === 'percentage' ? (
+                      <span className="text-lg font-bold text-green-600">{coupon.value}%</span>
                     ) : (
-                      <span className="text-lg font-bold text-green-600">${coupon.discountValue}</span>
+                      <span className="text-lg font-bold text-green-600">${coupon.value}</span>
                     )}
                   </div>
                   {coupon.description && (
