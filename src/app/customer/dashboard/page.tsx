@@ -117,7 +117,7 @@ export default function CustomerDashboard() {
 
   // Check for review invite when settings are loaded and reviews are loaded
   useEffect(() => {
-    if (customerUser && reviews.length === 0 && !settings.loading) {
+    if (customerUser && reviews.length === 0 && !loading) {
       const reviewInviteEnabled = settings?.website?.reviewInvite?.enabled ?? true;
       
       if (reviewInviteEnabled) {
@@ -136,7 +136,7 @@ export default function CustomerDashboard() {
         }
       }
     }
-  }, [customerUser, reviews.length, settings.loading, settings?.website?.reviewInvite, showReviewInvite, showReviewInviteWithCode]);
+  }, [customerUser, reviews.length, loading, settings?.website?.reviewInvite, showReviewInvite, showReviewInviteWithCode]);
 
   const loadCustomerData = async () => {
     if (!customerUser?.email) return;
