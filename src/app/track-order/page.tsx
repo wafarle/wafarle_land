@@ -305,24 +305,24 @@ export default function TrackOrderPage() {
                     </div>
                   )}
 
-                  {order.shippingTrackingNumber && (
+                  {(order as any).shippingTrackingNumber && (
                     <div className="mt-4 pt-4 border-t border-gray-200">
                       <div className="flex items-center gap-2">
                         <Truck className="w-5 h-5 text-blue-600" />
                         <div>
                           <span className="text-sm text-gray-600">رقم التتبع:</span>
                           <span className="font-mono font-bold text-blue-600 mr-2">
-                            {order.shippingTrackingNumber}
+                            {(order as any).shippingTrackingNumber}
                           </span>
                         </div>
                       </div>
                     </div>
                   )}
 
-                  {order.downloadLink && (
+                  {(order as any).downloadLink && (
                     <div className="mt-4 pt-4 border-t border-gray-200">
                       <a
-                        href={order.downloadLink}
+                        href={(order as any).downloadLink}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"

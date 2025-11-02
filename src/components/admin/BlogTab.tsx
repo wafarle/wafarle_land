@@ -88,7 +88,6 @@ export const BlogTab = () => {
       case 'published': return 'bg-green-500 text-white';
       case 'draft': return 'bg-gray-500 text-white';
       case 'scheduled': return 'bg-blue-500 text-white';
-      case 'archived': return 'bg-yellow-500 text-white';
       default: return 'bg-gray-500 text-white';
     }
   };
@@ -98,7 +97,6 @@ export const BlogTab = () => {
       case 'published': return 'منشور';
       case 'draft': return 'مسودة';
       case 'scheduled': return 'مجدول';
-      case 'archived': return 'مؤرشف';
       default: return status;
     }
   };
@@ -189,7 +187,7 @@ export const BlogTab = () => {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredPosts.map((post, index) => {
-            const category = categories.find(cat => cat.id === post.categoryId);
+            const category = categories.find(cat => cat.id === (post as any).categoryId);
             
             return (
               <motion.div

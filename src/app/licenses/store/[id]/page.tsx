@@ -146,15 +146,16 @@ export default function StoreDetailsPage() {
 
   // Calculate product sales from orders
   const productSales = orders.reduce((acc, order) => {
-    if (order.status === 'completed' && order.productId) {
-      if (!acc[order.productId]) {
-        acc[order.productId] = {
+    if (order.status === 'completed' && order.product?.id) {
+      const productId = order.product.id;
+      if (!acc[productId]) {
+        acc[productId] = {
           count: 0,
           revenue: 0
         };
       }
-      acc[order.productId].count += 1;
-      acc[order.productId].revenue += order.totalAmount || 0;
+      acc[productId].count += 1;
+      acc[productId].revenue += order.totalPrice || 0;
     }
     return acc;
   }, {} as Record<string, { count: number; revenue: number }>);
@@ -452,20 +453,20 @@ export default function StoreDetailsPage() {
                               <ShoppingCart className="w-5 h-5 text-blue-400" />
                             </div>
                             <div>
-                              <p className="text-white font-medium">{order.orderNumber || `#${order.id.slice(0, 8)}`}</p>
+                              <p className="text-white font-medium">{(order as any).orderNumber || `#${order.id.slice(0, 8)}`}</p>
                               <p className="text-white/60 text-sm">{order.customerName}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-4">
                             <div className="text-left">
                               <p className="text-white font-bold">
-                                {(order.totalAmount || 0).toLocaleString('ar-SA', { 
+                                {(order.totalPrice || 0).toLocaleString('ar-SA', { 
                                   style: 'currency', 
                                   currency: 'SAR',
                                   minimumFractionDigits: 0 
                                 })}
                               </p>
-                              <p className="text-white/60 text-sm">{order.productName}</p>
+                              <p className="text-white/60 text-sm">{order.product?.name || 'منتج'}</p>
                             </div>
                             <span className={`px-3 py-1 rounded-full text-xs ${
                               order.status === 'completed' ? 'bg-green-500/20 text-green-400' :
@@ -524,9 +525,9 @@ export default function StoreDetailsPage() {
                             <p className="text-white/60 text-sm">{product.category || 'غير محدد'}</p>
                           </div>
                           <span className={`px-2 py-1 rounded-full text-xs ${
-                            !product.isHidden && product.available !== false ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                            product.isAvailable !== false ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
                           }`}>
-                            {!product.isHidden && product.available !== false ? 'نشط' : 'مخفي'}
+                            {product.isAvailable !== false ? 'نشط' : 'مخفي'}
                           </span>
                         </div>
 
@@ -612,7 +613,7 @@ export default function StoreDetailsPage() {
                               <ShoppingCart className="w-6 h-6 text-blue-400" />
                             </div>
                             <div>
-                              <p className="text-white font-bold">{order.orderNumber || `#${order.id.slice(0, 8)}`}</p>
+                              <p className="text-white font-bold">{(order as any).orderNumber || `#${order.id.slice(0, 8)}`}</p>
                               <p className="text-white/60 text-sm">{order.customerName}</p>
                               <p className="text-white/40 text-xs mt-1">
                                 {order.createdAt?.toLocaleDateString('ar-SA')}
@@ -623,12 +624,12 @@ export default function StoreDetailsPage() {
                           <div className="flex items-center gap-6">
                             <div className="text-center">
                               <p className="text-white/60 text-xs">المنتج</p>
-                              <p className="text-white font-bold text-sm">{order.productName}</p>
+                              <p className="text-white font-bold text-sm">{order.product?.name || 'منتج'}</p>
                             </div>
                             <div className="text-center">
                               <p className="text-white/60 text-xs">الإجمالي</p>
                               <p className="text-green-400 font-bold">
-                                {(order.totalAmount || 0).toLocaleString('ar-SA', { 
+                                {(order.totalPrice || 0).toLocaleString('ar-SA', { 
                                   style: 'currency', 
                                   currency: 'SAR',
                                   minimumFractionDigits: 0 

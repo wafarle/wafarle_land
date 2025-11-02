@@ -106,25 +106,25 @@ export const CouponsTab = () => {
         type: code.type,
         value: code.value,
         description: code.description || '',
-        minPurchaseAmount: code.minPurchaseAmount || 0,
-        maxDiscountAmount: code.maxDiscountAmount || 0,
-        usageLimit: code.usageLimit || 0,
-        usageLimitPerCustomer: code.usageLimitPerCustomer || 1,
+        minPurchaseAmount: code.minPurchase || 0,
+        maxDiscountAmount: (code as any).maxDiscountAmount || 0,
+        usageLimit: code.maxUses || 0,
+        usageLimitPerCustomer: (code as any).usageLimitPerCustomer || 1,
         validFrom: code.validFrom ? new Date(code.validFrom).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
         validTo: code.validTo ? new Date(code.validTo).toISOString().split('T')[0] : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         isActive: code.isActive,
-        applicableProductIds: code.applicableProductIds || [],
-        excludeProductIds: code.excludeProductIds || [],
-        priority: code.priority || 1,
-        stackable: code.stackable || false,
+        applicableProductIds: (code as any).applicableProductIds || [],
+        excludeProductIds: (code as any).excludeProductIds || [],
+        priority: (code as any).priority || 1,
+        stackable: (code as any).stackable || false,
         autoApply: code.autoApply || false,
-        loyaltyTierOnly: code.loyaltyTierOnly || '',
-        bulkDiscount: code.bulkDiscount || { enabled: false, tiers: [] },
-        minimumItems: code.minimumItems || 0,
-        freeShipping: code.freeShipping || false,
-        buyXGetY: code.buyXGetY ? {
-          ...code.buyXGetY,
-          productId: code.buyXGetY.productId ?? ''
+        loyaltyTierOnly: (code as any).loyaltyTierOnly || '',
+        bulkDiscount: (code as any).bulkDiscount || { enabled: false, tiers: [] },
+        minimumItems: (code as any).minimumItems || 0,
+        freeShipping: (code as any).freeShipping || false,
+        buyXGetY: (code as any).buyXGetY ? {
+          ...(code as any).buyXGetY,
+          productId: (code as any).buyXGetY.productId ?? ''
         } : { enabled: false, buyQuantity: 1, getQuantity: 1, productId: '' }
       });
     } else {
@@ -247,9 +247,9 @@ export const CouponsTab = () => {
   const isCodeValid = (code: DiscountCode) => {
     const now = new Date();
     return code.isActive &&
-           now >= new Date(code.validFrom) &&
-           now <= new Date(code.validTo) &&
-           (!code.usageLimit || code.usedCount < code.usageLimit);
+           (!code.validFrom || now >= new Date(code.validFrom)) &&
+           (!code.validTo || now <= new Date(code.validTo)) &&
+           (!code.maxUses || (code.currentUses || 0) < code.maxUses);
   };
 
   return (
@@ -359,22 +359,22 @@ export const CouponsTab = () => {
               <div className="space-y-2 text-sm text-gray-600 mb-4">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
-                  <span>من {formatDate(code.validFrom)}</span>
+                  <span>من {code.validFrom ? formatDate(code.validFrom) : 'غير محدد'}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4" />
-                  <span>إلى {formatDate(code.validTo)}</span>
+                  <span>إلى {code.validTo ? formatDate(code.validTo) : 'غير محدد'}</span>
                 </div>
-                {code.usageLimit && (
+                {code.maxUses && (
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4" />
-                    <span>استخدم {code.usedCount} من {code.usageLimit}</span>
+                    <span>استخدم {code.currentUses || 0} من {code.maxUses}</span>
                   </div>
                 )}
-                {code.applicableProductIds && code.applicableProductIds.length > 0 && (
+                {(code as any).applicableProductIds && (code as any).applicableProductIds.length > 0 && (
                   <div className="flex items-center gap-2">
                     <Package className="w-4 h-4" />
-                    <span>{code.applicableProductIds.length} منتج محدد</span>
+                    <span>{(code as any).applicableProductIds.length} منتج محدد</span>
                   </div>
                 )}
               </div>

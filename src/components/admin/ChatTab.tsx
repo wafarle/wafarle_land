@@ -64,15 +64,14 @@ const ChatTab = ({ onMessagesCountChange }: ChatTabProps) => {
   };
 
   const statusColors = {
-    active: 'bg-green-100 text-green-800 border-green-200',
-    pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    open: 'bg-green-100 text-green-800 border-green-200',
     closed: 'bg-gray-100 text-gray-800 border-gray-200'
   };
 
   const filteredConversations = conversations.filter(conv => {
     const matchesSearch = conv.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         conv.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         conv.subject?.toLowerCase().includes(searchTerm.toLowerCase());
+                         conv.customerEmail?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (conv as any).subject?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || conv.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -108,7 +107,7 @@ const ChatTab = ({ onMessagesCountChange }: ChatTabProps) => {
   }, []);
 
   useEffect(() => {
-    onMessagesCountChange?.(conversations.filter(c => c.status === 'pending').length);
+    onMessagesCountChange?.(conversations.filter(c => (c as any).status === 'pending').length);
   }, [conversations, onMessagesCountChange]);
 
   useEffect(() => {
@@ -196,7 +195,7 @@ const ChatTab = ({ onMessagesCountChange }: ChatTabProps) => {
       setOrderFormData({
         productId: '',
         customerName: selectedConversation.customerName,
-        customerEmail: selectedConversation.customerEmail,
+        customerEmail: selectedConversation.customerEmail || '',
         customerPhone: '',
         notes: `طلب من الشات - محادثة ${selectedConversation.id}`
       });
@@ -210,7 +209,7 @@ const ChatTab = ({ onMessagesCountChange }: ChatTabProps) => {
       setSubscriptionFormData({
         productId: '',
         customerName: selectedConversation.customerName,
-        customerEmail: selectedConversation.customerEmail,
+        customerEmail: selectedConversation.customerEmail || '',
         planType: 'شهري',
         durationMonths: 1,
         notes: `اشتراك من الشات - محادثة ${selectedConversation.id}`
@@ -237,16 +236,19 @@ const ChatTab = ({ onMessagesCountChange }: ChatTabProps) => {
 
       const orderData = {
         customerName: orderFormData.customerName,
-        customerEmail: orderFormData.customerEmail,
-        customerPhone: orderFormData.customerPhone || 'غير محدد',
-        productId: selectedProduct.id,
-        productName: selectedProduct.name,
-        productPrice: selectedProduct.price,
-        quantity: 1,
-        totalAmount: selectedProduct.price,
+        email: orderFormData.customerEmail,
+        phone: orderFormData.customerPhone || 'غير محدد',
+        product: {
+          id: selectedProduct.id,
+          name: selectedProduct.name,
+          price: selectedProduct.price,
+          image: selectedProduct.image,
+          quantity: 1,
+        },
+        totalPrice: selectedProduct.price,
         status: 'pending' as const,
-        paymentStatus: 'unpaid' as const,
-        paymentMethod: 'cash' as const,
+        paymentStatus: 'pending' as const,
+        paymentMethod: 'cash',
         notes: orderFormData.notes
       };
 
@@ -299,25 +301,12 @@ const ChatTab = ({ onMessagesCountChange }: ChatTabProps) => {
       const remainingDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 
       const subscriptionData = {
-        orderId: `chat-${Date.now()}`, // Temporary order ID
-        customerId: subscriptionFormData.customerEmail,
-        customerEmail: subscriptionFormData.customerEmail,
-        productId: selectedProduct.id,
-        productName: selectedProduct.name,
-        productImage: selectedProduct.image,
-        planType: subscriptionFormData.planType,
+        name: selectedProduct.name,
+        description: selectedProduct.description,
         price: selectedProduct.price,
-        startDate: startDate,
-        endDate: endDate,
-        durationMonths: subscriptionFormData.durationMonths,
-        status: 'active' as const,
-        autoRenewal: false,
-        paymentStatus: 'paid' as const,
-        remainingDays: remainingDays,
-        usageCount: 0,
-        maxUsage: 9999,
+        duration: `${subscriptionFormData.durationMonths} شهر`,
         features: selectedProduct.features || [],
-        notes: subscriptionFormData.notes
+        isActive: true,
       };
 
       await addSubscription(subscriptionData);
@@ -377,7 +366,7 @@ const ChatTab = ({ onMessagesCountChange }: ChatTabProps) => {
             <div>
               <p className="text-sm text-gray-600">المحادثات النشطة</p>
               <p className="text-2xl font-bold text-blue-600">
-                {conversations.filter(c => c.status === 'active').length}
+                {conversations.filter(c => c.status === 'open').length}
               </p>
             </div>
             <MessageCircle className="w-8 h-8 text-blue-500" />
@@ -389,7 +378,7 @@ const ChatTab = ({ onMessagesCountChange }: ChatTabProps) => {
             <div>
               <p className="text-sm text-gray-600">في الانتظار</p>
               <p className="text-2xl font-bold text-yellow-600">
-                {conversations.filter(c => c.status === 'pending').length}
+                {conversations.filter(c => c.status === 'open' && !c.lastMessage).length}
               </p>
             </div>
             <Clock className="w-8 h-8 text-yellow-500" />
@@ -413,7 +402,7 @@ const ChatTab = ({ onMessagesCountChange }: ChatTabProps) => {
             <div>
               <p className="text-sm text-gray-600">عالية الأولوية</p>
               <p className="text-2xl font-bold text-red-600">
-                {conversations.filter(c => c.priority === 'urgent' || c.priority === 'high').length}
+                {conversations.filter(c => c.status === 'open' && c.unreadCount && c.unreadCount > 0).length}
               </p>
             </div>
             <AlertCircle className="w-8 h-8 text-red-500" />
@@ -471,7 +460,7 @@ const ChatTab = ({ onMessagesCountChange }: ChatTabProps) => {
                     </div>
                   </div>
                   <div className="text-xs text-gray-500">
-                    {formatRelativeTime(conversation.lastMessageTime)}
+                    {conversation.lastMessageTime ? formatRelativeTime(conversation.lastMessageTime) : 'لا توجد رسائل'}
                   </div>
                 </div>
 
@@ -481,13 +470,12 @@ const ChatTab = ({ onMessagesCountChange }: ChatTabProps) => {
 
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${statusColors[conversation.status]}`}>
-                    {conversation.status === 'active' ? 'نشطة' :
-                     conversation.status === 'pending' ? 'في الانتظار' : 'مغلقة'}
+                    {conversation.status === 'open' ? 'نشطة' : 'مغلقة'}
                   </span>
-                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${priorityColors[conversation.priority]}`}>
-                    {conversation.priority === 'low' ? 'منخفضة' :
-                     conversation.priority === 'medium' ? 'متوسطة' :
-                     conversation.priority === 'high' ? 'عالية' : 'عاجلة'}
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${priorityColors[(conversation as any).priority as keyof typeof priorityColors] || priorityColors.low}`}>
+                    {(conversation as any).priority === 'low' ? 'منخفضة' :
+                     (conversation as any).priority === 'medium' ? 'متوسطة' :
+                     (conversation as any).priority === 'high' ? 'عالية' : 'منخفضة'}
                   </span>
                 </div>
               </motion.div>
@@ -520,13 +508,12 @@ const ChatTab = ({ onMessagesCountChange }: ChatTabProps) => {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${statusColors[selectedConversation.status]}`}>
-                      {selectedConversation.status === 'active' ? 'نشطة' :
-                       selectedConversation.status === 'pending' ? 'في الانتظار' : 'مغلقة'}
+                      {selectedConversation.status === 'open' ? 'نشطة' : 'مغلقة'}
                     </span>
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${priorityColors[selectedConversation.priority]}`}>
-                      {selectedConversation.priority === 'low' ? 'منخفضة' :
-                       selectedConversation.priority === 'medium' ? 'متوسطة' :
-                       selectedConversation.priority === 'high' ? 'عالية' : 'عاجلة'}
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${priorityColors[(selectedConversation as any).priority as keyof typeof priorityColors] || priorityColors.low}`}>
+                      {(selectedConversation as any).priority === 'low' ? 'منخفضة' :
+                       (selectedConversation as any).priority === 'medium' ? 'متوسطة' :
+                       (selectedConversation as any).priority === 'high' ? 'عالية' : 'منخفضة'}
                     </span>
                   </div>
                 </div>
@@ -604,15 +591,15 @@ const ChatTab = ({ onMessagesCountChange }: ChatTabProps) => {
                       key={message.id}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className={`flex ${message.sender === 'support' ? 'justify-end' : 'justify-start'}`}
+                      className={`flex ${message.senderType === 'staff' ? 'justify-end' : 'justify-start'}`}
                     >
-                      <div className={`max-w-[70%] ${message.sender === 'support' ? 'text-right' : 'text-right'}`}>
-                        <div className={`inline-block px-4 py-2 rounded-2xl ${
-                          message.sender === 'support'
+                        <div className={`max-w-[70%] ${message.senderType === 'staff' ? 'text-right' : 'text-right'}`}>
+                          <div className={`inline-block px-4 py-2 rounded-2xl ${
+                            message.senderType === 'staff'
                             ? 'bg-blue-500 text-white'
                             : 'bg-gray-100 text-gray-900'
                         }`}>
-                          <p className="text-sm">{message.content}</p>
+                          <p className="text-sm">{message.message}</p>
                         </div>
                         <p className="text-xs text-gray-500 mt-1">
                           {message.senderName} • {formatTime(message.timestamp)}

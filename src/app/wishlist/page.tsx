@@ -172,7 +172,7 @@ export default function WishlistPage() {
                             <Star
                               key={star}
                               className={`w-4 h-4 ${
-                                star <= Math.floor(product.averageRating || product.rating || 0)
+                                star <= Math.floor((product as any).averageRating || product.rating || 0)
                                   ? 'text-yellow-400 fill-yellow-400'
                                   : 'text-gray-300'
                               }`}
@@ -180,7 +180,7 @@ export default function WishlistPage() {
                           ))}
                         </div>
                         <span className="text-xs text-gray-500">
-                          {(product.averageRating || product.rating || 0).toFixed(1)}
+                          {((product as any).averageRating || product.rating || 0).toFixed(1)}
                         </span>
                       </div>
 

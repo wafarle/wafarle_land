@@ -129,7 +129,7 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
       filtered = filtered.filter(customer =>
         customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        customer.phone.includes(searchTerm)
+        (customer.phone && customer.phone.includes(searchTerm))
       );
     }
 
