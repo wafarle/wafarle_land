@@ -371,10 +371,10 @@ export default function LicenseManagementPage() {
                   <span className="text-white font-medium">المنتجات</span>
                 </div>
                 <span className="text-white/60 text-sm">
-                  {license.maxProducts === 0 ? 'غير محدود ♾️' : `حتى ${license.maxProducts}`}
+                  {(license.maxProducts ?? 0) === 0 ? 'غير محدود ♾️' : `حتى ${license.maxProducts ?? 0}`}
                 </span>
               </div>
-              {license.maxProducts > 0 && (
+              {(license.maxProducts ?? 0) > 0 && (
                 <div className="w-full bg-white/5 rounded-full h-3 overflow-hidden">
                   <div 
                     className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
@@ -392,10 +392,10 @@ export default function LicenseManagementPage() {
                   <span className="text-white font-medium">الطلبات الشهرية</span>
                 </div>
                 <span className="text-white/60 text-sm">
-                  {license.maxOrders === 0 ? 'غير محدود ♾️' : `حتى ${license.maxOrders}`}
+                  {(license.maxOrders ?? 0) === 0 ? 'غير محدود ♾️' : `حتى ${license.maxOrders ?? 0}`}
                 </span>
               </div>
-              {license.maxOrders > 0 && (
+              {(license.maxOrders ?? 0) > 0 && (
                 <div className="w-full bg-white/5 rounded-full h-3 overflow-hidden">
                   <div 
                     className="h-full bg-gradient-to-r from-green-500 to-green-600 rounded-full"

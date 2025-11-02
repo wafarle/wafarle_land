@@ -92,12 +92,12 @@ export default function StoreDetailsPage() {
 
       // Calculate statistics
       const totalProducts = productsData.length;
-      const activeProducts = productsData.filter(p => !p.isHidden && p.available !== false).length;
+      const activeProducts = productsData.filter(p => p.isAvailable !== false).length;
       const totalOrders = ordersData.length;
       const completedOrders = ordersData.filter(o => o.status === 'completed').length;
       const totalRevenue = ordersData
         .filter(o => o.status === 'completed')
-        .reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+        .reduce((sum, order) => sum + (order.totalPrice || 0), 0);
       const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
       setStats({
