@@ -124,8 +124,6 @@ export const SEOTab = () => {
       setTimeout(() => {
         successDiv.remove();
       }, 3000);
-      
-      console.log('✅ SEO settings saved successfully:', seoSettings);
     } catch (err) {
       console.error('❌ Error saving SEO settings:', err);
       

@@ -41,11 +41,6 @@ export async function POST(request: NextRequest) {
     // Check if email service is enabled (check for API key)
     if (!apiKey || apiKey.trim() === '') {
       // In development, simulate email sending
-      console.log('📧 Email service not configured - simulating email:', {
-        to,
-        subject,
-        from,
-      });
       return NextResponse.json({
         success: true,
         message: 'Email sent (simulated)',
@@ -79,13 +74,6 @@ export async function POST(request: NextRequest) {
 
     // Send email
     const result = await resend.emails.send(emailData);
-
-    console.log('✅ Email sent successfully:', {
-      to,
-      subject,
-      messageId: result.data?.id || 'unknown',
-    });
-
     return NextResponse.json({
       success: true,
       messageId: result.data?.id,
@@ -111,6 +99,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
 
 
 

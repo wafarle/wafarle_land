@@ -42,7 +42,6 @@ export const signUpCustomer = async (
   phone: string
 ): Promise<CustomerUser> => {
   if (!FIREBASE_ENABLED || !auth) {
-    console.log('Firebase not enabled, using mock customer signup');
     // Return mock user for development
     return {
       uid: 'mock-' + Date.now(),
@@ -71,9 +70,6 @@ export const signUpCustomer = async (
       status: 'active',
       lastOrderDate: new Date()
     });
-
-    console.log('✅ Customer signed up successfully:', user.uid);
-
     return {
       uid: user.uid,
       email: user.email || email,
@@ -90,7 +86,6 @@ export const signUpCustomer = async (
 // Sign in with Google
 export const signInWithGoogle = async (): Promise<CustomerUser> => {
   if (!FIREBASE_ENABLED || !auth || !googleProvider) {
-    console.log('Firebase not enabled, using mock Google signin');
     // Return mock user for development
     return {
       uid: 'mock-google-' + Date.now(),
@@ -140,9 +135,6 @@ export const signInWithGoogle = async (): Promise<CustomerUser> => {
         });
       }
     }
-
-    console.log('✅ Customer signed in with Google successfully:', user.uid);
-
     return {
       uid: user.uid,
       email: user.email || '',
@@ -169,7 +161,6 @@ export const signInWithGoogle = async (): Promise<CustomerUser> => {
 // Sign in customer
 export const signInCustomer = async (email: string, password: string): Promise<CustomerUser> => {
   if (!FIREBASE_ENABLED || !auth) {
-    console.log('Firebase not enabled, using mock customer signin');
     // Mock authentication for development
     if (email === 'customer@example.com' && password === 'password123') {
       return mockCustomerUser;
@@ -184,9 +175,6 @@ export const signInCustomer = async (email: string, password: string): Promise<C
     // Get customer data from database
     const customers = await getCustomers();
     const customerData = customers.find(c => c.email === user.email);
-
-    console.log('✅ Customer signed in successfully:', user.uid);
-
     return {
       uid: user.uid,
       email: user.email || email,
@@ -216,13 +204,11 @@ export const signInCustomer = async (email: string, password: string): Promise<C
 // Sign out customer
 export const signOutCustomer = async (): Promise<void> => {
   if (!FIREBASE_ENABLED || !auth) {
-    console.log('Firebase not enabled, simulating customer sign out');
     return Promise.resolve();
   }
 
   try {
     await signOut(auth);
-    console.log('✅ Customer signed out successfully');
   } catch (error) {
     console.error('Error signing out customer:', error);
     throw error;
@@ -278,14 +264,12 @@ export const onCustomerAuthStateChange = (callback: (user: CustomerUser | null) 
 // Password reset
 export const resetCustomerPassword = async (email: string): Promise<void> => {
   if (!FIREBASE_ENABLED || !auth) {
-    console.log('Firebase not enabled, simulating password reset');
     return Promise.resolve();
   }
 
   try {
     const { sendPasswordResetEmail } = await import('firebase/auth');
     await sendPasswordResetEmail(auth, email);
-    console.log('✅ Password reset email sent');
   } catch (error: any) {
     console.error('Error sending password reset email:', error);
     
@@ -312,7 +296,6 @@ export const updateCustomerProfile = async (
   }
 ): Promise<void> => {
   if (!FIREBASE_ENABLED || !auth) {
-    console.log('Firebase not enabled, simulating profile update');
     return Promise.resolve();
   }
 
@@ -358,8 +341,6 @@ export const updateCustomerProfile = async (
         await updateCustomer(customerData.id, updateData);
       }
     }
-
-    console.log('✅ Customer profile updated successfully');
   } catch (error) {
     console.error('Error updating customer profile:', error);
     throw error;

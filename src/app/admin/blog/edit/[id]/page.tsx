@@ -68,37 +68,18 @@ const EditBlogPost = ({ params }: EditBlogPostProps) => {
   const loadData = async () => {
     try {
       setInitialLoading(true);
-      console.log('🔄 [EDIT PAGE] Starting loadData');
-      console.log('🔄 [EDIT PAGE] Post ID:', resolvedParams.id);
-      console.log('🔄 [EDIT PAGE] ID type:', typeof resolvedParams.id);
-      console.log('🔄 [EDIT PAGE] ID length:', resolvedParams.id.length);
-      console.log('🔄 [EDIT PAGE] Current timestamp:', Date.now());
-      
-      console.log('📞 [EDIT PAGE] About to call getBlogPostById and getBlogCategories...');
       const [postData, categoriesData] = await Promise.all([
         getBlogPostById(resolvedParams.id),
         getBlogCategories()
       ]);
-      console.log('📞 [EDIT PAGE] API calls completed');
-      
-      console.log('📋 [EDIT] getBlogPost result:', postData ? `Found: ${postData.title}` : 'NULL');
-
       if (postData) {
-        console.log('✅ [EDIT PAGE] Post found for editing:', postData.title);
-        console.log('✅ [EDIT PAGE] Post data structure:', {
-          id: postData.id,
-          title: postData.title,
-          seoTitle: postData.seoTitle,
-          seoDescription: postData.seoDescription,
-          hasSeoObject: !!postData.seo
-        });
         
         setPost(postData);
         setFormData({
           title: postData.title,
           excerpt: postData.excerpt || '',
           content: postData.content,
-          categoryId: postData.categoryId || '',
+          categoryId: postData.categories?.[0] || '',
           categories: postData.categories || [],
           tags: postData.tags || [],
           status: postData.status,
@@ -120,7 +101,6 @@ const EditBlogPost = ({ params }: EditBlogPostProps) => {
         if (postData.featuredImage) {
           setImagePreview(postData.featuredImage);
         }
-        console.log('✅ [EDIT PAGE] Form data initialized successfully');
       } else {
         console.error('❌ [EDIT PAGE] Post not found with ID:', resolvedParams.id);
         console.error('❌ [EDIT PAGE] This should not happen if mock data is working!');
@@ -156,8 +136,7 @@ const EditBlogPost = ({ params }: EditBlogPostProps) => {
         slug,
         excerpt: formData.excerpt,
         content: formData.content,
-        categoryId: formData.categoryId,
-        categories: formData.categories,
+        categories: formData.categories.length > 0 ? formData.categories : (formData.categoryId ? [formData.categoryId] : []),
         tags: formData.tags,
         status: formData.status,
         visibility: formData.visibility,
@@ -181,19 +160,7 @@ const EditBlogPost = ({ params }: EditBlogPostProps) => {
           alt: formData.seoAlt,
           canonicalUrl: formData.canonicalUrl,
           robotsIndex: formData.robotsIndex,
-          robotsFollow: formData.robotsFollow,
-          structuredData: {
-            article: {
-              headline: formData.seoTitle || formData.title,
-              description: formData.seoDescription || formData.excerpt,
-              image: formData.seoImage || formData.featuredImage,
-              author: post?.authorName || 'المحرر',
-              publisher: 'وافرلي',
-              datePublished: post?.publishedAt?.toISOString() || new Date().toISOString(),
-              dateModified: new Date().toISOString(),
-              mainEntityOfPage: formData.canonicalUrl || `https://wafarle.com/blog/${slug}`
-            }
-          }
+          robotsFollow: formData.robotsFollow
         },
         updatedAt: new Date(),
         ...(formData.status === 'published' && !post?.publishedAt && { publishedAt: new Date() }),
@@ -201,9 +168,7 @@ const EditBlogPost = ({ params }: EditBlogPostProps) => {
         ...(formData.status === 'scheduled' && { scheduledAt: new Date() })
       };
 
-      console.log('💾 [SAVE] Attempting to save post with ID:', resolvedParams.id);
       await updateBlogPost(resolvedParams.id, updatedPost);
-      console.log('✅ [SAVE] Post saved successfully');
       
       // Navigate back to blog tab
       router.push('/admin/dashboard?tab=blog');

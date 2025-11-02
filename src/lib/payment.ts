@@ -216,7 +216,6 @@ class PayPalService {
     if (!this.clientId || !this.clientSecret || 
         this.clientId.trim() === '' || this.clientSecret.trim() === '') {
       // Simulate payment without redirecting to PayPal
-      console.log('🧪 PayPal credentials missing or empty: Simulating payment (no redirect)');
       return {
         id: `paypal_sim_${Date.now()}`,
         orderId,
@@ -283,7 +282,6 @@ class PayPalService {
       console.error('PayPal order creation error:', error);
       
       // Fallback: simulate payment locally (don't redirect to PayPal)
-      console.log('🧪 PayPal error - Simulating payment locally (no redirect)');
       return {
         id: `paypal_sim_${Date.now()}`,
         orderId,
@@ -300,7 +298,6 @@ class PayPalService {
   async captureOrder(paypalOrderId: string): Promise<PaymentResult> {
     // Check if this is a simulated/test payment
     if (paypalOrderId.startsWith('paypal_test_') || paypalOrderId.startsWith('paypal_sim_')) {
-      console.log('🧪 PayPal test mode: Simulating payment capture success');
       return {
         success: true,
         paymentIntent: {

@@ -6,10 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "create-admin": "node scripts/create-admin.mjs"
   },
   "dependencies": {
     "firebase": "^12.4.0",
+    "firebase-admin": "^13.5.0",
     "framer-motion": "^12.23.24",
     "gsap": "^3.13.0",
     "html2canvas": "^1.4.1",

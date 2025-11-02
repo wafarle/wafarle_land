@@ -53,11 +53,9 @@ export const ReviewInviteTab = () => {
               usageLimitPerCustomer: 1, // One use per customer
               createdBy: 'system'
             });
-            console.log('✅ Review invite discount code created automatically');
           } catch (error: any) {
             // If code exists, try to update it
             if (error.message?.includes('موجود بالفعل')) {
-              console.log('⚠️ Discount code already exists, will be updated if needed');
             } else {
               console.error('Error creating review invite discount code:', error);
             }

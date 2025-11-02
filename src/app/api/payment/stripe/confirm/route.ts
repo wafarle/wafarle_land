@@ -9,7 +9,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { paymentIntentId, clientSecret } = body;
     
-    console.log('✅ Stripe Payment Confirmed (simulated):', { paymentIntentId });
 
     return NextResponse.json({
       id: paymentIntentId,
@@ -25,6 +24,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
 
 
 

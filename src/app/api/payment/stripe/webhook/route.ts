@@ -33,9 +33,6 @@ export async function POST(request: NextRequest) {
 
     // For now, parse JSON directly (NOT SECURE - for development only)
     const event = JSON.parse(body);
-
-    console.log('📥 Stripe webhook received:', event.type);
-
     switch (event.type) {
       case 'payment_intent.succeeded':
         const paymentIntent = event.data.object;
@@ -44,12 +41,9 @@ export async function POST(request: NextRequest) {
         if (orderId) {
           await updateOrder(orderId, {
             paymentStatus: 'paid',
-            paymentGateway: 'stripe',
-            paymentGatewayTransactionId: paymentIntent.id,
-            paymentGatewayOrderId: paymentIntent.id,
+            paymentMethod: 'stripe',
             status: 'confirmed',
           });
-          console.log('✅ Order updated after successful payment:', orderId);
         }
         break;
 
@@ -59,11 +53,9 @@ export async function POST(request: NextRequest) {
 
         if (failedOrderId) {
           await updateOrder(failedOrderId, {
-            paymentStatus: 'unpaid',
-            paymentGateway: 'stripe',
-            paymentGatewayTransactionId: failedPayment.id,
+            paymentStatus: 'failed',
+            paymentMethod: 'stripe',
           });
-          console.log('❌ Order updated after failed payment:', failedOrderId);
         }
         break;
 
@@ -75,12 +67,10 @@ export async function POST(request: NextRequest) {
           await updateOrder(refundedOrderId, {
             paymentStatus: 'refunded',
           });
-          console.log('💰 Order updated after refund:', refundedOrderId);
         }
         break;
 
       default:
-        console.log('⚠️ Unhandled event type:', event.type);
     }
 
     return NextResponse.json({ received: true });
@@ -92,6 +82,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
 
 
 

@@ -21,10 +21,8 @@ at async handleSubmit (src/app/admin/blog/edit/[id]/page.tsx:205:7)
 ### ✅ 1. إنشاء دالة جديدة `getBlogPostById`
 ```typescript
 export const getBlogPostById = async (id: string): Promise<BlogPost | null> => {
-  console.log('🚀 [GET_BLOG_POST_BY_ID] Called with ID:', id);
   
   if (!FIREBASE_ENABLED || !db) {
-    console.log('🔍 [GET_BLOG_POST_BY_ID] Firebase not enabled, returning null');
     return null;
   }
 
@@ -34,17 +32,11 @@ export const getBlogPostById = async (id: string): Promise<BlogPost | null> => {
     const docSnap = await getDoc(docRef);
     
     if (!docSnap.exists()) {
-      console.log('🔍 [GET_BLOG_POST_BY_ID] No document found for ID:', id);
       return null;
     }
     
     const docData = docSnap.data();
-    console.log('📄 [GET_BLOG_POST_BY_ID] Found document:', {
-      id: docSnap.id,
-      slug: docData.slug,
-      title: docData.title
-    });
-    
+  
     return {
       id: docSnap.id,
       ...docData,
@@ -93,9 +85,7 @@ if (!docSnap.exists()) {
 
 ### ✅ 4. تسجيل مفصل للتشخيص
 ```typescript
-console.log('📝 [UPDATE_BLOG_POST] Called with ID:', id);
-console.log('✅ [UPDATE_BLOG_POST] Document exists, updating...');
-console.log('✅ [UPDATE_BLOG_POST] Successfully updated blog post');
+
 ```
 
 ## الملفات المحدثة
@@ -120,9 +110,7 @@ console.log('✅ [UPDATE_BLOG_POST] Successfully updated blog post');
 
 ### 2. تحقق من معرف المقال
 ```typescript
-console.log('🔄 [EDIT PAGE] Post ID:', resolvedParams.id);
-console.log('🔄 [EDIT PAGE] ID type:', typeof resolvedParams.id);
-console.log('🔄 [EDIT PAGE] ID length:', resolvedParams.id.length);
+
 ```
 
 ### 3. تحقق من Firebase Console
@@ -161,6 +149,8 @@ console.log('🔄 [EDIT PAGE] ID length:', resolvedParams.id.length);
 2. اختر مقال للتحرير
 3. احفظ التغييرات
 4. تحقق من console للتأكد من عدم وجود أخطاء
+
+
 
 
 

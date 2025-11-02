@@ -47,3 +47,5 @@ export async function POST(
     return NextResponse.json({ error: 'Capture failed' }, { status: 500 });
   }
 }
+
+

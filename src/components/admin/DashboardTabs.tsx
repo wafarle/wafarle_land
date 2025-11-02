@@ -59,7 +59,9 @@ import {
   Tags,
   Save,
   Image,
-  Ticket
+  Ticket,
+  Palette,
+  Type
 } from 'lucide-react';
 import CurrencyDisplay from '@/components/CurrencyDisplay';
 import { useSettings } from '../../contexts/SettingsContext';
@@ -339,7 +341,6 @@ export const AnalyticsTab = () => {
         const coupons = await getDiscountCodes();
         setCouponsData(coupons);
       } catch (error) {
-        console.log('Coupons not available');
       }
     } catch (error) {
       console.error('Error loading analytics data:', error);
@@ -924,6 +925,7 @@ export const SettingsTab = () => {
 
   const settingsTabs = [
     { id: 'general', name: 'عام', icon: Settings },
+    { id: 'customization', name: 'التخصيص', icon: Sparkles },
     { id: 'social', name: 'السوشال ميديا', icon: Globe },
     { id: 'analytics', name: 'التحليلات', icon: BarChart },
     { id: 'security', name: 'الأمان', icon: Shield },
@@ -995,8 +997,6 @@ export const SettingsTab = () => {
       setTimeout(() => {
         successDiv.remove();
       }, 3000);
-      
-      console.log('✅ Settings saved successfully:', newSettings);
     } catch (err) {
       console.error('❌ Error saving settings:', err);
       
@@ -1161,6 +1161,647 @@ export const SettingsTab = () => {
           {/* SEO Settings */}
           {activeSettingsTab === 'seo' && (
             <SEOTab />
+          )}
+
+          {/* Customization Settings */}
+          {activeSettingsTab === 'customization' && (
+            <div className="space-y-6">
+              {/* Store Type Selection */}
+              <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+                <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-purple-400" />
+                  نوع المتجر
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    { id: 'general', name: 'عام', icon: '🏪' },
+                    { id: 'clothing', name: 'ملابس', icon: '👕' },
+                    { id: 'shoes', name: 'أحذية', icon: '👟' },
+                    { id: 'electronics', name: 'إلكترونيات', icon: '📱' },
+                    { id: 'accessories', name: 'إكسسوارات', icon: '👜' },
+                    { id: 'cosmetics', name: 'مستحضرات', icon: '💄' },
+                    { id: 'sports', name: 'رياضة', icon: '⚽' },
+                    { id: 'food', name: 'طعام', icon: '🍔' },
+                  ].map((type) => (
+                    <button
+                      key={type.id}
+                      onClick={() => handleWebsiteSettingChange('storeType', type.id)}
+                      className={`p-4 rounded-xl border-2 transition-all ${
+                        (websiteSettings.storeType || 'general') === type.id
+                          ? 'bg-gradient-to-r from-purple-500 to-pink-600 border-purple-400 text-white'
+                          : 'bg-white/5 border-white/20 text-white/70 hover:bg-white/10'
+                      }`}
+                    >
+                      <div className="text-3xl mb-2">{type.icon}</div>
+                      <div className="font-medium text-sm">{type.name}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Color Theme */}
+              <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+                <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+                  <Palette className="w-5 h-5 text-blue-400" />
+                  الألوان والثيم
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Primary Color */}
+                  <div>
+                    <label className="block text-white/70 text-sm font-medium mb-2">اللون الأساسي</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={websiteSettings.customization?.theme?.primaryColor || '#3b82f6'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                primaryColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={websiteSettings.customization?.theme?.primaryColor || '#3b82f6'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                primaryColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="#3b82f6"
+                      />
+                    </div>
+                  </div>
+                  {/* Secondary Color */}
+                  <div>
+                    <label className="block text-white/70 text-sm font-medium mb-2">اللون الثانوي</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={websiteSettings.customization?.theme?.secondaryColor || '#8b5cf6'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                secondaryColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={websiteSettings.customization?.theme?.secondaryColor || '#8b5cf6'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                secondaryColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="#8b5cf6"
+                      />
+                    </div>
+                  </div>
+                  {/* Accent Color */}
+                  <div>
+                    <label className="block text-white/70 text-sm font-medium mb-2">لون التمييز</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={websiteSettings.customization?.theme?.accentColor || '#10b981'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                accentColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={websiteSettings.customization?.theme?.accentColor || '#10b981'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                accentColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="#10b981"
+                      />
+                    </div>
+                  </div>
+                  {/* Background Color */}
+                  <div>
+                    <label className="block text-white/70 text-sm font-medium mb-2">لون الخلفية</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={websiteSettings.customization?.theme?.backgroundColor || '#ffffff'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                backgroundColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={websiteSettings.customization?.theme?.backgroundColor || '#ffffff'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                backgroundColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="#ffffff"
+                      />
+                    </div>
+                  </div>
+                  {/* Text Color */}
+                  <div>
+                    <label className="block text-white/70 text-sm font-medium mb-2">لون النص</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={websiteSettings.customization?.theme?.textColor || '#1f2937'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                textColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={websiteSettings.customization?.theme?.textColor || '#1f2937'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                textColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="#1f2937"
+                      />
+                    </div>
+                  </div>
+                  {/* Border Color */}
+                  <div>
+                    <label className="block text-white/70 text-sm font-medium mb-2">لون الحدود</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={websiteSettings.customization?.theme?.borderColor || '#e5e7eb'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                borderColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={websiteSettings.customization?.theme?.borderColor || '#e5e7eb'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                borderColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="#e5e7eb"
+                      />
+                    </div>
+                  </div>
+                  {/* Success Color */}
+                  <div>
+                    <label className="block text-white/70 text-sm font-medium mb-2">لون النجاح</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={websiteSettings.customization?.theme?.successColor || '#10b981'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                successColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={websiteSettings.customization?.theme?.successColor || '#10b981'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                successColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="#10b981"
+                      />
+                    </div>
+                  </div>
+                  {/* Warning Color */}
+                  <div>
+                    <label className="block text-white/70 text-sm font-medium mb-2">لون التحذير</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={websiteSettings.customization?.theme?.warningColor || '#f59e0b'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                warningColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={websiteSettings.customization?.theme?.warningColor || '#f59e0b'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                warningColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="#f59e0b"
+                      />
+                    </div>
+                  </div>
+                  {/* Error Color */}
+                  <div>
+                    <label className="block text-white/70 text-sm font-medium mb-2">لون الخطأ</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        value={websiteSettings.customization?.theme?.errorColor || '#ef4444'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                errorColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
+                      />
+                      <input
+                        type="text"
+                        value={websiteSettings.customization?.theme?.errorColor || '#ef4444'}
+                        onChange={(e) => {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              theme: {
+                                ...(prev.customization?.theme || {}),
+                                errorColor: e.target.value
+                              } as any
+                            }
+                          }));
+                        }}
+                        className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="#ef4444"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Typography Settings */}
+              <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+                <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+                  <Type className="w-5 h-5 text-green-400" />
+                  الخطوط والطباعة
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Font Family */}
+                  <div>
+                    <label className="block text-white/70 text-sm font-medium mb-2">خط العائلة العام</label>
+                    <select
+                      value={websiteSettings.customization?.typography?.fontFamily || 'Cairo, sans-serif'}
+                      onChange={(e) => {
+                        setWebsiteSettings(prev => ({
+                          ...prev,
+                          customization: {
+                            ...(prev.customization || {}),
+                            typography: {
+                              ...(prev.customization?.typography || {}),
+                              fontFamily: e.target.value
+                            } as any
+                          }
+                        }));
+                      }}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="Cairo, sans-serif">Cairo (عربي/إنجليزي)</option>
+                      <option value="Tajawal, sans-serif">Tajawal (عربي/إنجليزي)</option>
+                      <option value="Almarai, sans-serif">Almarai (عربي)</option>
+                      <option value="Amiri, serif">Amiri (عربي - خط فاخر)</option>
+                      <option value="Roboto, sans-serif">Roboto (إنجليزي)</option>
+                      <option value="Open Sans, sans-serif">Open Sans (إنجليزي)</option>
+                      <option value="Poppins, sans-serif">Poppins (إنجليزي)</option>
+                      <option value="Inter, sans-serif">Inter (إنجليزي)</option>
+                      <option value="Lato, sans-serif">Lato (إنجليزي)</option>
+                      <option value="Montserrat, sans-serif">Montserrat (إنجليزي)</option>
+                      <option value="Playfair Display, serif">Playfair Display (إنجليزي - خط فاخر)</option>
+                      <option value="Merriweather, serif">Merriweather (إنجليزي - خط فاخر)</option>
+                    </select>
+                  </div>
+                  {/* Heading Font */}
+                  <div>
+                    <label className="block text-white/70 text-sm font-medium mb-2">خط العناوين</label>
+                    <select
+                      value={websiteSettings.customization?.typography?.headingFont || 'Cairo, sans-serif'}
+                      onChange={(e) => {
+                        setWebsiteSettings(prev => ({
+                          ...prev,
+                          customization: {
+                            ...(prev.customization || {}),
+                            typography: {
+                              ...(prev.customization?.typography || {}),
+                              headingFont: e.target.value
+                            } as any
+                          }
+                        }));
+                      }}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="Cairo, sans-serif">Cairo (عربي/إنجليزي)</option>
+                      <option value="Tajawal, sans-serif">Tajawal (عربي/إنجليزي)</option>
+                      <option value="Almarai, sans-serif">Almarai (عربي)</option>
+                      <option value="Amiri, serif">Amiri (عربي - خط فاخر)</option>
+                      <option value="Roboto, sans-serif">Roboto (إنجليزي)</option>
+                      <option value="Open Sans, sans-serif">Open Sans (إنجليزي)</option>
+                      <option value="Poppins, sans-serif">Poppins (إنجليزي)</option>
+                      <option value="Inter, sans-serif">Inter (إنجليزي)</option>
+                      <option value="Lato, sans-serif">Lato (إنجليزي)</option>
+                      <option value="Montserrat, sans-serif">Montserrat (إنجليزي)</option>
+                      <option value="Playfair Display, serif">Playfair Display (إنجليزي - خط فاخر)</option>
+                      <option value="Merriweather, serif">Merriweather (إنجليزي - خط فاخر)</option>
+                    </select>
+                  </div>
+                  {/* Body Font */}
+                  <div>
+                    <label className="block text-white/70 text-sm font-medium mb-2">خط النص</label>
+                    <select
+                      value={websiteSettings.customization?.typography?.bodyFont || 'Cairo, sans-serif'}
+                      onChange={(e) => {
+                        setWebsiteSettings(prev => ({
+                          ...prev,
+                          customization: {
+                            ...(prev.customization || {}),
+                            typography: {
+                              ...(prev.customization?.typography || {}),
+                              bodyFont: e.target.value
+                            } as any
+                          }
+                        }));
+                      }}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="Cairo, sans-serif">Cairo (عربي/إنجليزي)</option>
+                      <option value="Tajawal, sans-serif">Tajawal (عربي/إنجليزي)</option>
+                      <option value="Almarai, sans-serif">Almarai (عربي)</option>
+                      <option value="Amiri, serif">Amiri (عربي - خط فاخر)</option>
+                      <option value="Roboto, sans-serif">Roboto (إنجليزي)</option>
+                      <option value="Open Sans, sans-serif">Open Sans (إنجليزي)</option>
+                      <option value="Poppins, sans-serif">Poppins (إنجليزي)</option>
+                      <option value="Inter, sans-serif">Inter (إنجليزي)</option>
+                      <option value="Lato, sans-serif">Lato (إنجليزي)</option>
+                      <option value="Montserrat, sans-serif">Montserrat (إنجليزي)</option>
+                      <option value="Playfair Display, serif">Playfair Display (إنجليزي - خط فاخر)</option>
+                      <option value="Merriweather, serif">Merriweather (إنجليزي - خط فاخر)</option>
+                    </select>
+                  </div>
+                  {/* Custom Font Input */}
+                  <div>
+                    <label className="block text-white/70 text-sm font-medium mb-2">خط مخصص (اسم الخط من Google Fonts)</label>
+                    <input
+                      type="text"
+                      value={websiteSettings.customization?.typography?.fontFamily?.includes(',') ? websiteSettings.customization.typography.fontFamily.split(',')[0] : ''}
+                      onChange={(e) => {
+                        const customFont = e.target.value.trim();
+                        if (customFont) {
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              typography: {
+                                ...(prev.customization?.typography || {}),
+                                fontFamily: `${customFont}, sans-serif`
+                              } as any
+                            }
+                          }));
+                        }
+                      }}
+                      className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="مثال: Aladin, Raleway, Oswald"
+                    />
+                    <p className="text-xs text-white/50 mt-2">
+                      أدخل اسم الخط من Google Fonts (بدون مسافات في الاسم، مثل: Aladin وليس Aladin Regular)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Custom Categories */}
+              <div className="bg-white/5 rounded-2xl p-6 border border-white/10">
+                <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+                  <Tags className="w-5 h-5 text-green-400" />
+                  الفئات المخصصة
+                </h3>
+                <div className="space-y-4">
+                  {(websiteSettings.customization?.categories || []).map((category, index) => (
+                    <div key={category.id || index} className="flex items-center gap-3 p-4 bg-white/5 rounded-lg">
+                      <input
+                        type="text"
+                        value={category.name}
+                        onChange={(e) => {
+                          const newCategories = [...(websiteSettings.customization?.categories || [])];
+                          newCategories[index].name = e.target.value;
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              categories: newCategories
+                            }
+                          }));
+                        }}
+                        className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="اسم الفئة"
+                      />
+                      <input
+                        type="number"
+                        value={category.order}
+                        onChange={(e) => {
+                          const newCategories = [...(websiteSettings.customization?.categories || [])];
+                          newCategories[index].order = parseInt(e.target.value);
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              categories: newCategories
+                            }
+                          }));
+                        }}
+                        className="w-20 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="الترتيب"
+                      />
+                      <button
+                        onClick={() => {
+                          const newCategories = (websiteSettings.customization?.categories || []).filter((_, i) => i !== index);
+                          setWebsiteSettings(prev => ({
+                            ...prev,
+                            customization: {
+                              ...(prev.customization || {}),
+                              categories: newCategories
+                            }
+                          }));
+                        }}
+                        className="text-red-400 hover:text-red-300 p-2"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => {
+                      const newCategories = [
+                        ...(websiteSettings.customization?.categories || []),
+                        {
+                          id: `category-${Date.now()}`,
+                          name: 'فئة جديدة',
+                          isActive: true,
+                          order: (websiteSettings.customization?.categories || []).length + 1
+                        }
+                      ];
+                      setWebsiteSettings(prev => ({
+                        ...prev,
+                        customization: {
+                          ...(prev.customization || {}),
+                          categories: newCategories
+                        }
+                      }));
+                    }}
+                    className="w-full px-4 py-3 bg-white/10 border-2 border-dashed border-white/30 rounded-lg text-white/50 hover:border-white/50 hover:text-white flex items-center justify-center gap-2 transition-all"
+                  >
+                    <Plus className="w-5 h-5" />
+                    <span>إضافة فئة جديدة</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
                   {/* Social Media Settings */}
@@ -1801,3 +2442,4 @@ export const UsersTab = () => (
     <p className="text-white/60 text-lg">إدارة المستخدمين قريباً...</p>
   </div>
 );
+

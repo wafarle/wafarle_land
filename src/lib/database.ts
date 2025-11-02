@@ -3,7 +3,8 @@
 import { 
   collection, 
   doc, 
-  getDocs, 
+  getDocs,
+  getDoc, 
   addDoc, 
   updateDoc, 
   deleteDoc, 
@@ -16,7 +17,7 @@ import {
   limit,
   runTransaction
 } from 'firebase/firestore';
-import { Product, ContactMessage, Order, Customer, Subscription, ChatMessage, ChatConversation, SubscriptionReview, DiscountCode } from '@/lib/firebase';
+import { Product, ContactMessage, Order, Customer, Subscription, ChatMessage, ChatConversation, SubscriptionReview, DiscountCode, Category, License, SystemVersion, UpdateNotification, LicenseCheck } from '@/lib/firebase';
 import { CurrencySettings, DEFAULT_CURRENCY_SETTINGS } from '@/lib/currency';
 import { StaffUser, StaffRole } from '@/lib/firebase';
 import { db, FIREBASE_ENABLED } from '@/lib/firebase';
@@ -34,6 +35,11 @@ let chatMessagesCollection: any;
 let discountCodesCollection: any;
 let staffCollection: any;
 let staffActivityCollection: any;
+let categoriesCollection: any;
+let licensesCollection: any;
+let versionsCollection: any;
+let updateNotificationsCollection: any;
+let licenseChecksCollection: any;
 
 
 
@@ -46,6 +52,11 @@ if (FIREBASE_ENABLED && db) {
   chatConversationsCollection = collection(db, 'chatConversations');
   chatMessagesCollection = collection(db, 'chatMessages');
   discountCodesCollection = collection(db, 'discountCodes');
+  categoriesCollection = collection(db, 'categories');
+  licensesCollection = collection(db, 'licenses');
+  versionsCollection = collection(db, 'versions');
+  updateNotificationsCollection = collection(db, 'updateNotifications');
+  licenseChecksCollection = collection(db, 'licenseChecks');
 }
 
 // Mock data for development/fallback
@@ -146,7 +157,7 @@ const mockProducts: Product[] = [
     price: 29.99, // Converted to SAR
     image: '/api/placeholder/300/200',
     externalLink: 'https://shahid.mbc.net',
-    description: 'محتوى عربي حصري من MBC وأفضل المسलسلات العربية',
+    description: 'محتوى عربي حصري من MBC وأفضل المسلسلات العربية',
     createdAt: new Date(),
     category: 'streaming',
     discount: '30%',
@@ -184,6 +195,19 @@ const mockProducts: Product[] = [
       }
     ],
     defaultOptionId: 'shahid-monthly'
+  },
+  {
+    id: '3t9ZmfoYU5icJYXh2MES',
+    name: 'منتج تجريبي Firestore',
+    description: 'هذا منتج وهمي بنفس المعرّف العشوائي لاختبار الربط.',
+    price: 99.99,
+    image: '/api/placeholder/300/200',
+    category: 'test',
+    discount: '10%',
+    rating: 4.5,
+    averageRating: 4.5,
+    reviewsCount: 2,
+    features: ['اختبار ID Firestore', 'ربط صحيح', 'بيانات جاهزة'],
   },
 ];
 // بيانات تجريبية للموظفين - mock
@@ -495,7 +519,6 @@ const mockSubscriptions: Subscription[] = [
 // Get all chat conversations
 export const getChatConversations = async (): Promise<ChatConversation[]> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, returning mock chat conversations');
     return mockChatConversations;
   }
 
@@ -515,7 +538,6 @@ export const getChatConversations = async (): Promise<ChatConversation[]> => {
     });
   } catch (error) {
     console.error('Error getting chat conversations:', error);
-    console.log('Falling back to mock data');
     return mockChatConversations;
   }
 };
@@ -525,7 +547,6 @@ export const subscribeToChatConversations = (
   callback: (conversations: ChatConversation[]) => void
 ): (() => void) => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, using mock chat conversations');
     callback(mockChatConversations);
     return () => {};
   }
@@ -547,7 +568,6 @@ export const subscribeToChatConversations = (
       callback(conversations);
     }, (error) => {
       console.error('Error in conversations subscription:', error);
-      console.log('Falling back to mock data');
       callback(mockChatConversations);
     });
   } catch (error) {
@@ -621,7 +641,6 @@ const mockChatMessages: ChatMessage[] = [
 // Get or create conversation for customer
 export const getOrCreateConversation = async (customerEmail: string, customerName: string): Promise<string> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, using mock conversation');
     // Check if conversation exists in mock data
     let conversation = mockChatConversations.find(c => c.customerEmail === customerEmail);
     if (!conversation) {
@@ -687,7 +706,6 @@ export const sendChatMessage = async (
   senderEmail?: string
 ): Promise<ChatMessage> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, using mock chat message');
     const message: ChatMessage = {
       id: Date.now().toString(),
       conversationId,
@@ -725,7 +743,6 @@ export const sendChatMessage = async (
 
     // Only proceed if we have valid data
     if (Object.keys(filteredMessageData).length === 0) {
-      console.log('No valid message data provided');
       throw new Error('No valid message data provided');
     }
 
@@ -788,7 +805,6 @@ export const sendChatMessage = async (
 // Get chat messages for conversation
 export const getChatMessages = async (conversationId: string): Promise<ChatMessage[]> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, returning mock chat messages');
     return mockChatMessages
       .filter(msg => msg.conversationId === conversationId)
       .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
@@ -816,7 +832,6 @@ export const getChatMessages = async (conversationId: string): Promise<ChatMessa
     // Sort manually since we got the data
     messages = messages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
     
-    console.log('✅ Chat messages loaded:', messages.length);
     return messages;
     
   } catch (error: any) {
@@ -843,7 +858,6 @@ export const getChatMessages = async (conversationId: string): Promise<ChatMessa
         // Sort manually in JavaScript
         messages = messages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
         
-        console.log('✅ Chat messages loaded (fallback):', messages.length);
         return messages;
       } catch (fallbackError) {
         console.error('Error in fallback query:', fallbackError);
@@ -862,7 +876,6 @@ export const subscribeToChatMessages = (
   callback: (messages: ChatMessage[]) => void
 ): (() => void) => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, using mock chat subscription');
     callback(mockChatMessages.filter(msg => msg.conversationId === conversationId));
     return () => {}; // Return empty unsubscribe function
   }
@@ -909,7 +922,6 @@ export const subscribeToChatMessages = (
     
     // Fallback to simple query subscription
     try {
-      console.log('🔄 Attempting fallback subscription without orderBy');
       const fallbackQuery = query(chatMessagesCollection, where('conversationId', '==', conversationId));
       return onSnapshot(fallbackQuery, processMessages);
     } catch (fallbackError) {
@@ -923,7 +935,6 @@ export const subscribeToChatMessages = (
 export const getProducts = async (): Promise<Product[]> => {
   // Return mock data if Firebase is not enabled
   if (!FIREBASE_ENABLED || !db || !productsCollection) {
-    console.log('Firebase not enabled, returning mock products');
     return Promise.resolve(mockProducts);
   }
 
@@ -933,29 +944,48 @@ export const getProducts = async (): Promise<Product[]> => {
     const firestoreProducts = querySnapshot.docs.map(doc => {
       const data = doc.data() as any;
       return {
-      id: doc.id,
+        id: doc.id,
         ...data,
         createdAt: data.createdAt?.toDate() || new Date(),
       };
     }) as Product[];
     
-    console.log(`✅ Successfully loaded ${firestoreProducts.length} products from Firestore`);
     return firestoreProducts;
   } catch (error: any) {
     console.error('Error getting products:', error);
     
     if (error.code === 'permission-denied') {
-      console.log('🔒 Permission denied - please update Firestore security rules');
-      console.log('📋 Falling back to mock products for now');
     }
     
     return mockProducts;
   }
 };
 
+/**
+ * جلب تفاصيل منتج واحد حسب المعرف من Firestore
+ */
+export const getProductById = async (id: string): Promise<Product | null> => {
+  if (!FIREBASE_ENABLED || !db || !productsCollection) {
+    // في حالة العمل بدون Firebase، يمكن استرجاع منتج تجريبي من قائمة وهمية
+    const allProducts = await getProducts();
+    return allProducts.find((p) => p.id === id) || null;
+  }
+
+  try {
+    const productRef = doc(db, 'products', id);
+    const productDoc = await getDoc(productRef);
+    if (!productDoc.exists()) {
+      return null;
+    }
+    return { id: productDoc.id, ...productDoc.data() } as Product;
+  } catch (error) {
+    console.error('Error getting product by id:', error);
+    return null;
+  }
+};
+
 export const addProduct = async (product: Omit<Product, 'id' | 'createdAt'>): Promise<string> => {
   if (!FIREBASE_ENABLED || !db || !productsCollection) {
-    console.log('Firebase not enabled, simulating product addition');
     return Promise.resolve('mock-id-' + Date.now());
   }
 
@@ -973,7 +1003,6 @@ export const addProduct = async (product: Omit<Product, 'id' | 'createdAt'>): Pr
 
 export const updateProduct = async (id: string, product: Partial<Product>): Promise<void> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, simulating product update');
     return Promise.resolve();
   }
 
@@ -988,13 +1017,11 @@ export const updateProduct = async (id: string, product: Partial<Product>): Prom
 
     // Only update if we have valid fields
     if (Object.keys(filteredProduct).length === 0) {
-      console.log('No valid updates provided for product:', id);
       return;
     }
 
     const productRef = doc(db, 'products', id);
     await updateDoc(productRef, filteredProduct);
-    console.log('✅ Product updated successfully:', id);
   } catch (error) {
     console.error('Error updating product:', error);
     throw error;
@@ -1003,7 +1030,6 @@ export const updateProduct = async (id: string, product: Partial<Product>): Prom
 
 export const deleteProduct = async (id: string): Promise<void> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, simulating product deletion');
     return Promise.resolve();
   }
 
@@ -1061,7 +1087,6 @@ export const deleteMessage = async (id: string): Promise<void> => {
 // Real-time listeners
 export const subscribeToProducts = (callback: (products: Product[]) => void) => {
   if (!FIREBASE_ENABLED || !db || !productsCollection) {
-    console.log('Firebase not enabled, using mock products for subscription');
     callback(mockProducts);
     return () => {}; // Return empty unsubscribe function
   }
@@ -1139,7 +1164,6 @@ export const getProductsByCategory = async (category: string): Promise<Product[]
 // Get all orders
 export const getOrders = async (): Promise<Order[]> => {
   if (!FIREBASE_ENABLED || !db || !ordersCollection) {
-    console.log('Firebase not enabled, returning mock orders');
     return Promise.resolve(mockOrders);
   }
 
@@ -1156,12 +1180,9 @@ export const getOrders = async (): Promise<Order[]> => {
       invoiceGeneratedAt: (doc.data() as any).invoiceGeneratedAt?.toDate() || undefined,
       invoiceSentAt: (doc.data() as any).invoiceSentAt?.toDate() || undefined,
     })) as Order[];
-    
-    console.log(`✅ Successfully loaded ${firestoreOrders.length} orders from Firestore`);
     return firestoreOrders;
   } catch (error: any) {
     console.error('Error getting orders:', error);
-    console.log('📋 Falling back to mock orders');
     return mockOrders;
   }
 };
@@ -1169,7 +1190,6 @@ export const getOrders = async (): Promise<Order[]> => {
 // Update product stock
 export const updateProductStock = async (productId: string, quantityChange: number): Promise<void> => {
   if (!FIREBASE_ENABLED || !db || !productsCollection) {
-    console.log('Firebase not enabled, simulating stock update');
     return Promise.resolve();
   }
 
@@ -1194,7 +1214,6 @@ export const updateProductStock = async (productId: string, quantityChange: numb
         updatedAt: serverTimestamp()
       });
       
-      console.log(`✅ Stock updated: ${currentStock} → ${newStock} (${quantityChange > 0 ? '+' : ''}${quantityChange})`);
       
       // Check for low stock warning
       if (newStock > 0 && newStock <= (productData.lowStockThreshold || 10)) {
@@ -1260,7 +1279,6 @@ export const checkProductStock = async (productId: string, requestedQuantity: nu
 // Add new order
 export const addOrder = async (order: Omit<Order, 'id' | 'createdAt'>): Promise<string> => {
   if (!FIREBASE_ENABLED || !db || !ordersCollection) {
-    console.log('Firebase not enabled, simulating order addition');
     return Promise.resolve('mock-order-id-' + Date.now());
   }
 
@@ -1291,9 +1309,6 @@ export const addOrder = async (order: Omit<Order, 'id' | 'createdAt'>): Promise<
       ...cleanedOrder,
       createdAt: serverTimestamp(),
     });
-    
-    console.log('✅ Order added successfully:', docRef.id);
-    
     // Update product stock after order is created
     if (order.productType === 'physical') {
       const quantityToDeduct = -(order.quantity || 1);
@@ -1321,7 +1336,6 @@ export const addOrder = async (order: Omit<Order, 'id' | 'createdAt'>): Promise<
 // Update order
 export const updateOrder = async (id: string, updates: Partial<Order>): Promise<void> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, simulating order update');
     return Promise.resolve();
   }
 
@@ -1366,13 +1380,10 @@ export const updateOrder = async (id: string, updates: Partial<Order>): Promise<
 
     // Only update if we have valid fields
     if (Object.keys(filteredUpdates).length === 0) {
-      console.log('No valid updates provided for order:', id);
       return;
     }
     
     await updateDoc(orderRef, filteredUpdates);
-    console.log('✅ Order updated successfully:', id);
-
     // Check if order should be converted to subscription
     const finalOrder = { ...currentOrder, ...updates };
     await checkAndCreateSubscription(id, finalOrder);
@@ -1445,12 +1456,9 @@ export const updateOrder = async (id: string, updates: Partial<Order>): Promise<
 // Delete order and related subscription
 export const deleteOrder = async (id: string): Promise<void> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, simulating order deletion with subscription cleanup');
-    
     // In mock mode, also check for related subscriptions
     const relatedSubscription = mockSubscriptions.find(sub => sub.orderId === id);
     if (relatedSubscription) {
-      console.log('🔗 Mock: Found related subscription, simulating deletion:', relatedSubscription.id);
       // Remove from mock array (for demo purposes)
       const index = mockSubscriptions.findIndex(sub => sub.id === relatedSubscription.id);
       if (index > -1) {
@@ -1467,7 +1475,6 @@ export const deleteOrder = async (id: string): Promise<void> => {
     const relatedSubscription = subscriptions.find(sub => sub.orderId === id);
     
     if (relatedSubscription) {
-      console.log('🔗 Found related subscription, deleting:', relatedSubscription.id);
       await deleteSubscription(relatedSubscription.id);
     }
 
@@ -1478,10 +1485,7 @@ export const deleteOrder = async (id: string): Promise<void> => {
     // Then delete the order
     const orderRef = doc(db, 'orders', id);
     await deleteDoc(orderRef);
-    
-    console.log('✅ Order deleted successfully:', id);
     if (relatedSubscription) {
-      console.log('✅ Related subscription also deleted:', relatedSubscription.id);
     }
 
     // Update customer stats after deletion (subtract the order amount)
@@ -1565,7 +1569,6 @@ export const getOrdersByPaymentStatus = async (paymentStatus: Order['paymentStat
 // Real-time orders subscription
 export const subscribeToOrders = (callback: (orders: Order[]) => void) => {
   if (!FIREBASE_ENABLED || !db || !ordersCollection) {
-    console.log('Firebase not enabled, using mock orders for subscription');
     callback(mockOrders);
     return () => {}; // Return empty unsubscribe function
   }
@@ -1593,7 +1596,6 @@ export const subscribeToOrders = (callback: (orders: Order[]) => void) => {
 // Get all customers
 export const getCustomers = async (): Promise<Customer[]> => {
   if (!FIREBASE_ENABLED || !db || !customersCollection) {
-    console.log('Firebase not enabled, returning mock customers');
     return Promise.resolve(mockCustomers);
   }
 
@@ -1607,12 +1609,9 @@ export const getCustomers = async (): Promise<Customer[]> => {
       lastOrderDate: (doc.data() as any).lastOrderDate?.toDate() || undefined,
       dateOfBirth: (doc.data() as any).dateOfBirth?.toDate() || undefined,
     })) as Customer[];
-    
-    console.log(`✅ Successfully loaded ${firestoreCustomers.length} customers from Firestore`);
     return firestoreCustomers;
   } catch (error: any) {
     console.error('Error getting customers:', error);
-    console.log('📋 Falling back to mock customers');
     return mockCustomers;
   }
 };
@@ -1620,7 +1619,6 @@ export const getCustomers = async (): Promise<Customer[]> => {
 // Add new customer
 export const addCustomer = async (customer: Omit<Customer, 'id' | 'registrationDate' | 'totalOrders' | 'totalSpent' | 'averageOrderValue'>): Promise<string> => {
   if (!FIREBASE_ENABLED || !db || !customersCollection) {
-    console.log('Firebase not enabled, simulating customer addition');
     return Promise.resolve('mock-customer-id-' + Date.now());
   }
 
@@ -1637,7 +1635,6 @@ export const addCustomer = async (customer: Omit<Customer, 'id' | 'registrationD
       totalLoyaltyPointsRedeemed: customer.totalLoyaltyPointsRedeemed || 0,
       loyaltyTier: customer.loyaltyTier || 'bronze',
     });
-    console.log('✅ Customer added successfully:', docRef.id);
     return docRef.id;
   } catch (error) {
     console.error('Error adding customer:', error);
@@ -1648,7 +1645,6 @@ export const addCustomer = async (customer: Omit<Customer, 'id' | 'registrationD
 // Update customer
 export const updateCustomer = async (id: string, updates: Partial<Customer>): Promise<void> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, simulating customer update');
     return Promise.resolve();
   }
 
@@ -1663,13 +1659,11 @@ export const updateCustomer = async (id: string, updates: Partial<Customer>): Pr
 
     // Only update if we have valid fields
     if (Object.keys(filteredUpdates).length === 0) {
-      console.log('No valid updates provided for customer:', id);
       return;
     }
 
     const customerRef = doc(db, 'customers', id);
     await updateDoc(customerRef, filteredUpdates);
-    console.log('✅ Customer updated successfully:', id);
   } catch (error) {
     console.error('Error updating customer:', error);
     throw error;
@@ -1679,14 +1673,12 @@ export const updateCustomer = async (id: string, updates: Partial<Customer>): Pr
 // Delete customer
 export const deleteCustomer = async (id: string): Promise<void> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, simulating customer deletion');
     return Promise.resolve();
   }
 
   try {
     const customerRef = doc(db, 'customers', id);
     await deleteDoc(customerRef);
-    console.log('✅ Customer deleted successfully:', id);
   } catch (error) {
     console.error('Error deleting customer:', error);
     throw error;
@@ -1791,7 +1783,6 @@ export const searchCustomers = async (searchTerm: string): Promise<Customer[]> =
 // Real-time customers subscription
 export const subscribeToCustomers = (callback: (customers: Customer[]) => void) => {
   if (!FIREBASE_ENABLED || !db || !customersCollection) {
-    console.log('Firebase not enabled, using mock customers for subscription');
     callback(mockCustomers);
     return () => {}; // Return empty unsubscribe function
   }
@@ -1839,8 +1830,6 @@ export const sendNotificationToAdmin = async (notification: {
         }),
       });
     }
-
-    console.log('✅ Admin notification sent:', notification.title);
   } catch (error) {
     console.error('Error sending admin notification:', error);
     // Don't throw - notification failures shouldn't break the flow
@@ -1860,7 +1849,6 @@ export const sendNotificationToCustomer = async (
 ): Promise<void> => {
   try {
     if (!FIREBASE_ENABLED || !db) {
-      console.log('Firebase not enabled, simulating customer notification');
       return;
     }
 
@@ -1874,7 +1862,6 @@ export const sendNotificationToCustomer = async (
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
-      console.log('No FCM token found for customer:', customerEmail);
       return;
     }
 
@@ -1897,10 +1884,6 @@ export const sendNotificationToCustomer = async (
     });
 
     await Promise.all(promises);
-    console.log('✅ Customer notification sent:', {
-      customerEmail,
-      title: notification.title,
-    });
   } catch (error) {
     console.error('Error sending customer notification:', error);
     // Don't throw - notification failures shouldn't break the flow
@@ -1931,15 +1914,6 @@ export const calculateLoyaltyPoints = async (orderAmount: number): Promise<numbe
     const pointsPerOrder = loyaltyProgram.pointsPerOrder || 0;
 
     const totalPoints = pointsFromAmount + pointsPerOrder;
-    
-    console.log('🎁 Loyalty points calculated:', {
-      orderAmount,
-      pointsPerDollar: loyaltyProgram.pointsPerDollar,
-      pointsFromAmount,
-      pointsPerOrder,
-      totalPoints
-    });
-
     return totalPoints;
   } catch (error) {
     console.error('Error calculating loyalty points:', error);
@@ -1986,7 +1960,6 @@ export const redeemLoyaltyPoints = async (
   reason: string = 'Points redeemed'
 ): Promise<boolean> => {
   if (!FIREBASE_ENABLED || !db || !customersCollection) {
-    console.log('Firebase not enabled, simulating loyalty points redemption');
     return false;
   }
 
@@ -2000,7 +1973,6 @@ export const redeemLoyaltyPoints = async (
     const querySnapshot = await getDocs(q);
     
     if (querySnapshot.empty) {
-      console.log('⚠️ Customer not found for loyalty points redemption:', customerEmail);
       return false;
     }
 
@@ -2011,11 +1983,6 @@ export const redeemLoyaltyPoints = async (
     
     // Check if customer has enough points
     if (currentPoints < points) {
-      console.log('⚠️ Insufficient loyalty points:', {
-        customerEmail,
-        requested: points,
-        available: currentPoints
-      });
       return false;
     }
 
@@ -2028,15 +1995,6 @@ export const redeemLoyaltyPoints = async (
       totalLoyaltyPointsRedeemed: newTotalRedeemed,
       updatedAt: serverTimestamp()
     });
-    
-    console.log('✅ Loyalty points redeemed:', {
-      customerEmail,
-      points,
-      currentPoints,
-      newPoints,
-      reason
-    });
-
     return true;
   } catch (error) {
     console.error('Error redeeming loyalty points:', error);
@@ -2047,7 +2005,6 @@ export const redeemLoyaltyPoints = async (
 // Update customer stats (called when orders change)
 export const updateCustomerStats = async (customerEmail: string, newOrderAmount: number): Promise<void> => {
   if (!FIREBASE_ENABLED || !db || !customersCollection) {
-    console.log('Firebase not enabled, simulating customer stats update');
     return Promise.resolve();
   }
 
@@ -2094,16 +2051,6 @@ export const updateCustomerStats = async (customerEmail: string, newOrderAmount:
       }
       
       await updateDoc(customerDoc.ref, updates);
-      
-      console.log('✅ Customer stats updated:', {
-        customerEmail,
-        totalOrders: newTotalOrders,
-        totalSpent: newTotalSpent,
-        ...(loyaltyProgram?.enabled && {
-          pointsEarned: updates.loyaltyPoints ? updates.loyaltyPoints - (customerData.loyaltyPoints || 0) : 0,
-          newTier: updates.loyaltyTier || customerData.loyaltyTier
-        })
-      });
     } else {
       // Create new customer if not exists
       const settings = await getWebsiteSettings();
@@ -2133,7 +2080,6 @@ export const updateCustomerStats = async (customerEmail: string, newOrderAmount:
 // Get currency settings
 export const getCurrencySettings = async (): Promise<CurrencySettings> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, using default currency settings');
     return DEFAULT_CURRENCY_SETTINGS;
   }
 
@@ -2163,7 +2109,6 @@ export const getCurrencySettings = async (): Promise<CurrencySettings> => {
 // Update currency settings
 export const updateCurrencySettings = async (settings: CurrencySettings): Promise<void> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, simulating currency settings update');
     return Promise.resolve();
   }
 
@@ -2184,8 +2129,6 @@ export const updateCurrencySettings = async (settings: CurrencySettings): Promis
         updatedAt: serverTimestamp()
       });
     });
-    
-    console.log('✅ Currency settings updated successfully');
   } catch (error) {
     console.error('Error updating currency settings:', error);
     throw error;
@@ -2195,7 +2138,6 @@ export const updateCurrencySettings = async (settings: CurrencySettings): Promis
 // Subscribe to currency settings changes
 export const subscribeToCurrencySettings = (callback: (settings: CurrencySettings) => void) => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, using default currency settings for subscription');
     callback(DEFAULT_CURRENCY_SETTINGS);
     return () => {}; // Return empty unsubscribe function
   }
@@ -2234,9 +2176,7 @@ export const subscribeToCurrencySettings = (callback: (settings: CurrencySetting
 //       return;
 //     }
 
-//     console.log('🎯 Creating subscription for confirmed and paid order:', orderId);
-
-//     // Get product details to determine subscription duration
+//     //     // Get product details to determine subscription duration
 //     const products = await getProducts();
 //     const product = products.find(p => p.id === order.productId);
     
@@ -2342,13 +2282,7 @@ export const subscribeToCurrencySettings = (callback: (settings: CurrencySetting
 //       });
 //     }
 
-//     console.log('🎉 Subscription created successfully!', {
-//       orderId,
-//       subscriptionId,
-//       planType,
-//       durationMonths,
-//       endDate: endDate.toISOString()
-//     });
+//     //     });
 
 //     // Update customer stats
 //     await updateCustomerStats(order.customerEmail, order.totalAmount || 0);
@@ -2364,9 +2298,6 @@ const checkAndCreateSubscription = async (orderId: string, order: Order): Promis
     // الشرط: الطلب مؤكد ومدفوع
     const eligible = order.status === 'confirmed' && order.paymentStatus === 'paid';
     if (!eligible) return;
-
-    console.log('🎯 Upsert subscription for confirmed & paid order:', orderId);
-
     // 1) احصل على تفاصيل المنتج (كما في كودك الأصلي)
     const products = await getProducts();
     const product = products.find(p => p.id === order.productId);
@@ -2378,11 +2309,6 @@ const checkAndCreateSubscription = async (orderId: string, order: Order): Promis
     // 2) التحقق من نوع المنتج: المنتجات الملموسة أو التي تحتاج تنزيل لا تتحول إلى اشتراكات
     const productType = product.productType || order.productType;
     if (productType === 'physical' || productType === 'download') {
-      console.log('⛔ Product type is physical or download, skipping subscription creation:', {
-        orderId,
-        productType,
-        productName: product.name
-      });
       return;
     }
 
@@ -2492,13 +2418,6 @@ const checkAndCreateSubscription = async (orderId: string, order: Order): Promis
       });
     });
 
-    console.log('🎉 Subscription upserted successfully!', {
-      orderId,
-      planType,
-      durationMonths,
-      endDate: endDate.toISOString(),
-    });
-
     // 6) إحصائيات العميل (خارج الترانزاكشن)
     await updateCustomerStats(order.customerEmail, order.totalAmount || 0);
 
@@ -2527,8 +2446,6 @@ export const createSubscriptionFromOrder = async (orderId: string): Promise<stri
     };
 
     await checkAndCreateSubscription(orderId, modifiedOrder);
-    console.log('✅ Manual subscription creation completed for order:', orderId);
-    
     return orderId;
   } catch (error) {
     console.error('Error creating manual subscription:', error);
@@ -2543,7 +2460,6 @@ export const createSubscriptionFromOrder = async (orderId: string): Promise<stri
 // Get all subscriptions
 export const getSubscriptions = async (): Promise<Subscription[]> => {
   if (!FIREBASE_ENABLED || !db || !subscriptionsCollection) {
-    console.log('Firebase not enabled, returning mock subscriptions');
     return Promise.resolve(mockSubscriptions);
   }
 
@@ -2558,7 +2474,6 @@ export const getSubscriptions = async (): Promise<Subscription[]> => {
       createdAt: (doc.data() as any).createdAt?.toDate(),
       updatedAt: (doc.data() as any).updatedAt?.toDate(),
     }));
-    console.log('✅ Subscriptions loaded from Firebase:', subscriptions.length);
     return subscriptions;
   } catch (error) {
     console.error('Error getting subscriptions:', error);
@@ -2569,7 +2484,6 @@ export const getSubscriptions = async (): Promise<Subscription[]> => {
 // Get customer subscriptions
 export const getCustomerSubscriptions = async (customerEmail: string): Promise<Subscription[]> => {
   if (!FIREBASE_ENABLED || !db || !subscriptionsCollection) {
-    console.log('Firebase not enabled, returning mock customer subscriptions');
     const customerSubs = mockSubscriptions.filter(sub => 
       sub.customerEmail.toLowerCase() === customerEmail.toLowerCase()
     );
@@ -2601,9 +2515,6 @@ export const getCustomerSubscriptions = async (customerEmail: string): Promise<S
       querySnapshot = await getDocs(q);
     } catch (indexError: any) {
       // If index is missing, fall back to simpler query without orderBy
-      console.log('📋 Firebase Index Info: Composite index not available for subscriptions query');
-      console.log('🔄 Using fallback: Simple query with manual sorting');
-      console.log('💡 To improve performance, create index: https://console.firebase.google.com/v1/r/project/wafarle-63a71/firestore/indexes');
       q = query(subscriptionsCollection, where('customerEmail', '==', customerEmail));
       querySnapshot = await getDocs(q);
     }
@@ -2631,8 +2542,6 @@ export const getCustomerSubscriptions = async (customerEmail: string): Promise<S
 
     // Sort manually if we couldn't use orderBy in query
     subscriptions = subscriptions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-    
-    console.log('✅ Customer subscriptions loaded:', subscriptions.length);
     return subscriptions;
   } catch (error) {
     console.error('Error getting customer subscriptions:', error);
@@ -2662,7 +2571,6 @@ export const getExpiredSubscriptions = async (): Promise<Subscription[]> => {
 // Add new subscription
 export const addSubscription = async (subscription: Omit<Subscription, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
   if (!FIREBASE_ENABLED || !db || !subscriptionsCollection) {
-    console.log('Firebase not enabled, simulating subscription creation');
     return Promise.resolve('mock-subscription-id');
   }
 
@@ -2672,7 +2580,6 @@ export const addSubscription = async (subscription: Omit<Subscription, 'id' | 'c
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
-    console.log('✅ Subscription added successfully:', docRef.id);
     return docRef.id;
   } catch (error) {
     console.error('Error adding subscription:', error);
@@ -2683,7 +2590,6 @@ export const addSubscription = async (subscription: Omit<Subscription, 'id' | 'c
 // Update subscription
 export const updateSubscription = async (id: string, updates: Partial<Subscription>): Promise<void> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, simulating subscription update');
     return Promise.resolve();
   }
 
@@ -2704,7 +2610,6 @@ export const updateSubscription = async (id: string, updates: Partial<Subscripti
     // Only update if we have valid fields
     if (Object.keys(filteredUpdates).length > 1) { // > 1 because updatedAt is always added
       await updateDoc(subscriptionRef, filteredUpdates);
-      console.log('✅ Subscription updated successfully:', id);
     }
   } catch (error) {
     console.error('Error updating subscription:', error);
@@ -2750,14 +2655,12 @@ export const resumeSubscription = async (id: string): Promise<void> => {
 // Delete subscription
 export const deleteSubscription = async (id: string): Promise<void> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, simulating subscription deletion');
     return Promise.resolve();
   }
 
   try {
     const subscriptionRef = doc(db, 'subscriptions', id);
     await deleteDoc(subscriptionRef);
-    console.log('✅ Subscription deleted successfully:', id);
   } catch (error) {
     console.error('Error deleting subscription:', error);
     throw error;
@@ -2767,7 +2670,6 @@ export const deleteSubscription = async (id: string): Promise<void> => {
 // Subscribe to subscriptions changes
 export const subscribeToSubscriptions = (callback: (subscriptions: Subscription[]) => void) => {
   if (!FIREBASE_ENABLED || !db || !subscriptionsCollection) {
-    console.log('Firebase not enabled, using mock subscriptions for subscription');
     callback(mockSubscriptions);
     return () => {}; // Return empty unsubscribe function
   }
@@ -2793,7 +2695,6 @@ export const subscribeToCustomerSubscriptions = (
   callback: (subscriptions: Subscription[]) => void
 ) => {
   if (!FIREBASE_ENABLED || !db || !subscriptionsCollection) {
-    console.log('Firebase not enabled, using mock customer subscriptions for subscription');
     const customerSubs = mockSubscriptions.filter(sub => 
       sub.customerEmail.toLowerCase() === customerEmail.toLowerCase()
     );
@@ -2825,8 +2726,6 @@ export const subscribeToCustomerSubscriptions = (
       orderBy('createdAt', 'desc')
     );
   } catch (error) {
-    console.log('📋 Real-time Subscriptions: Using simple query due to missing composite index');
-    console.log('💡 Create index for better performance: https://console.firebase.google.com/v1/r/project/wafarle-63a71/firestore/indexes');
   }
   
   return onSnapshot(q, async (snapshot) => {
@@ -2933,6 +2832,53 @@ export interface WebsiteSettings {
   maintenanceMode: boolean;
   logo?: string;
   favicon?: string;
+  // Store Customization Settings
+  storeType?: string; // نوع المتجر: 'clothing', 'shoes', 'electronics', 'general', etc.
+  customization?: {
+    // Color Theme
+    theme: {
+      primaryColor: string; // اللون الأساسي
+      secondaryColor: string; // اللون الثانوي
+      accentColor: string; // لون التمييز
+      backgroundColor: string; // لون الخلفية
+      textColor: string; // لون النص
+      borderColor: string; // لون الحدود
+      successColor: string; // لون النجاح
+      warningColor: string; // لون التحذير
+      errorColor: string; // لون الخطأ
+    };
+    // Typography
+    typography: {
+      fontFamily: string; // نوع الخط
+      headingFont: string; // خط العناوين
+      bodyFont: string; // خط النص
+    };
+    // Layout
+    layout: {
+      headerStyle: 'default' | 'minimal' | 'bold'; // أسلوب الهيدر
+      footerStyle: 'default' | 'minimal' | 'detailed'; // أسلوب الفوتر
+      productCardStyle: 'default' | 'modern' | 'classic'; // أسلوب بطاقة المنتج
+      borderRadius: 'none' | 'small' | 'medium' | 'large'; // حجم الانحناء
+    };
+    // Product Display Options
+    productOptions: {
+      showColors: boolean; // إظهار اختيار الألوان
+      showSizes: boolean; // إظهار اختيار المقاسات
+      showQuantity: boolean; // إظهار محدد الكمية
+      defaultColors?: string[]; // الألوان الافتراضية
+      defaultSizes?: string[]; // المقاسات الافتراضية
+    };
+    // Custom Categories
+    categories?: {
+      id: string;
+      name: string;
+      nameEn?: string;
+      icon?: string;
+      description?: string;
+      isActive: boolean;
+      order: number;
+    }[];
+  };
   // Payment Gateways
   paymentGateways?: {
     paypal: {
@@ -3122,6 +3068,39 @@ export const DEFAULT_WEBSITE_SETTINGS: WebsiteSettings = {
   language: 'ar',
   timezone: 'Asia/Riyadh',
   maintenanceMode: false,
+  storeType: 'general',
+  customization: {
+    theme: {
+      primaryColor: '#3b82f6',
+      secondaryColor: '#8b5cf6',
+      accentColor: '#f59e0b',
+      backgroundColor: '#ffffff',
+      textColor: '#1f2937',
+      borderColor: '#e5e7eb',
+      successColor: '#10b981',
+      warningColor: '#f59e0b',
+      errorColor: '#ef4444',
+    },
+    typography: {
+      fontFamily: 'Cairo, sans-serif',
+      headingFont: 'Cairo, sans-serif',
+      bodyFont: 'Cairo, sans-serif',
+    },
+    layout: {
+      headerStyle: 'default',
+      footerStyle: 'default',
+      productCardStyle: 'default',
+      borderRadius: 'medium',
+    },
+    productOptions: {
+      showColors: true,
+      showSizes: true,
+      showQuantity: true,
+      defaultColors: ['#84cc16', '#14b8a6', '#1e40af'],
+      defaultSizes: ['صغير', 'متوسط', 'كبير', 'كبير جداً'],
+    },
+    categories: [],
+  },
   // Payment Gateways
   paymentGateways: {
     paypal: {
@@ -3294,7 +3273,6 @@ export const DEFAULT_ANALYTICS_SETTINGS: AnalyticsSettings = {
 // Get website settings
 export const getWebsiteSettings = async (): Promise<AllSettings> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, using default settings');
     return {
       website: DEFAULT_WEBSITE_SETTINGS,
       security: DEFAULT_SECURITY_SETTINGS,
@@ -3352,8 +3330,6 @@ export const getWebsiteSettings = async (): Promise<AllSettings> => {
 // Update website settings
 export const updateWebsiteSettings = async (settings: AllSettings): Promise<void> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, simulating settings update');
-    console.log('Settings would be saved:', settings);
     return Promise.resolve();
   }
 
@@ -3375,14 +3351,9 @@ export const updateWebsiteSettings = async (settings: AllSettings): Promise<void
         updatedAt: serverTimestamp()
       });
     });
-    
-    console.log('✅ Website settings updated successfully');
-    
     // If maintenance mode changed, log it specially
     if (settings.website.maintenanceMode) {
-      console.log('🚧 Maintenance mode ENABLED');
     } else {
-      console.log('✅ Maintenance mode DISABLED');
     }
   } catch (error) {
     console.error('Error updating website settings:', error);
@@ -3393,7 +3364,6 @@ export const updateWebsiteSettings = async (settings: AllSettings): Promise<void
 // Subscribe to settings changes
 export const subscribeToWebsiteSettings = (callback: (settings: AllSettings) => void) => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, using default settings for subscription');
     callback({
       website: DEFAULT_WEBSITE_SETTINGS,
       security: DEFAULT_SECURITY_SETTINGS,
@@ -3441,7 +3411,6 @@ export const subscribeToWebsiteSettings = (callback: (settings: AllSettings) => 
 // Get all discount codes
 export const getDiscountCodes = async (): Promise<DiscountCode[]> => {
   if (!FIREBASE_ENABLED || !db || !discountCodesCollection) {
-    console.log('Firebase not enabled, returning empty discount codes');
     return [];
   }
 
@@ -3593,7 +3562,6 @@ export const validateDiscountCode = async (
 // Add discount code
 export const addDiscountCode = async (discountCode: Omit<DiscountCode, 'id' | 'createdAt' | 'updatedAt' | 'usedCount'>): Promise<string> => {
   if (!FIREBASE_ENABLED || !db || !discountCodesCollection) {
-    console.log('Firebase not enabled, simulating discount code creation');
     return Promise.resolve('mock-discount-code-id');
   }
 
@@ -3611,8 +3579,6 @@ export const addDiscountCode = async (discountCode: Omit<DiscountCode, 'id' | 'c
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
-    
-    console.log('✅ Discount code added successfully:', docRef.id);
     return docRef.id;
   } catch (error) {
     console.error('Error adding discount code:', error);
@@ -3623,7 +3589,6 @@ export const addDiscountCode = async (discountCode: Omit<DiscountCode, 'id' | 'c
 // Update discount code
 export const updateDiscountCode = async (id: string, updates: Partial<DiscountCode>): Promise<void> => {
   if (!FIREBASE_ENABLED || !db || !discountCodesCollection) {
-    console.log('Firebase not enabled, simulating discount code update');
     return Promise.resolve();
   }
 
@@ -3651,7 +3616,6 @@ export const updateDiscountCode = async (id: string, updates: Partial<DiscountCo
     });
 
     await updateDoc(codeRef, updateData);
-    console.log('✅ Discount code updated successfully:', id);
   } catch (error) {
     console.error('Error updating discount code:', error);
     throw error;
@@ -3679,14 +3643,12 @@ export const incrementDiscountCodeUsage = async (code: string, customerEmail?: s
 // Delete discount code
 export const deleteDiscountCode = async (id: string): Promise<void> => {
   if (!FIREBASE_ENABLED || !db || !discountCodesCollection) {
-    console.log('Firebase not enabled, simulating discount code deletion');
     return Promise.resolve();
   }
 
   try {
     const codeRef = doc(db, 'discountCodes', id);
     await deleteDoc(codeRef);
-    console.log('✅ Discount code deleted successfully:', id);
   } catch (error) {
     console.error('Error deleting discount code:', error);
     throw error;
@@ -3778,8 +3740,47 @@ export const generateInvoicePDF = async (order: Order): Promise<Blob> => {
     format: 'a4'
   });
 
-  // Set RTL direction
+  // Set RTL direction and Arabic language support
   pdf.setLanguage('ar');
+  
+  // Try to use HTML rendering for better Arabic support as fallback
+  // Ensure Arabic text renders correctly by embedding an Arabic-capable font if available
+  // We look for fonts served from public/fonts: NotoNaskhArabic-Regular.ttf and -Bold.ttf
+  let fontName = 'helvetica';
+  let useArabicFont = false;
+  
+  try {
+    const arrayBufferToBase64 = (buffer: ArrayBuffer): string => {
+      const bytes = new Uint8Array(buffer);
+      const chunkSize = 0x8000;
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        const chunk = bytes.subarray(i, i + chunkSize);
+        binary += String.fromCharCode.apply(null, Array.from(chunk) as unknown as number[]);
+      }
+      return btoa(binary);
+    };
+
+    // Regular
+    const regularRes = await fetch('/fonts/NotoNaskhArabic-Regular.ttf');
+    if (regularRes.ok) {
+      const regularB64 = arrayBufferToBase64(await regularRes.arrayBuffer());
+      pdf.addFileToVFS('NotoNaskhArabic-Regular.ttf', regularB64);
+      pdf.addFont('NotoNaskhArabic-Regular.ttf', 'NotoNaskhArabic', 'normal');
+      fontName = 'NotoNaskhArabic';
+      useArabicFont = true;
+    }
+    // Bold (optional)
+    const boldRes = await fetch('/fonts/NotoNaskhArabic-Bold.ttf');
+    if (boldRes.ok) {
+      const boldB64 = arrayBufferToBase64(await boldRes.arrayBuffer());
+      pdf.addFileToVFS('NotoNaskhArabic-Bold.ttf', boldB64);
+      pdf.addFont('NotoNaskhArabic-Bold.ttf', 'NotoNaskhArabic', 'bold');
+    }
+  } catch (e) {
+    // If anything fails, we'll use html() method which supports Arabic better
+    console.warn('Arabic font load failed, will use HTML rendering for better Arabic support:', e);
+  }
   
   // Get company info from settings (or use defaults)
   let companyName = 'وافرلي wafarle';
@@ -3806,17 +3807,17 @@ export const generateInvoicePDF = async (order: Order): Promise<Blob> => {
   
   pdf.setTextColor(255, 255, 255);
   pdf.setFontSize(24);
-  pdf.setFont('helvetica', 'bold');
+  pdf.setFont(fontName, 'bold');
   pdf.text('فاتورة', 105, 20, { align: 'center' });
 
   // Company Info (Right side)
   pdf.setTextColor(0, 0, 0);
   pdf.setFontSize(16);
-  pdf.setFont('helvetica', 'bold');
+  pdf.setFont(fontName, 'bold');
   pdf.text(companyName, 190, 45, { align: 'right' });
   
   pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'normal');
+  pdf.setFont(fontName, 'normal');
   pdf.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
   pdf.text(`البريد: ${companyEmail}`, 190, 52, { align: 'right' });
   pdf.text(`الهاتف: ${companyPhone}`, 190, 58, { align: 'right' });
@@ -3826,29 +3827,29 @@ export const generateInvoicePDF = async (order: Order): Promise<Blob> => {
 
   // Invoice Info (Left side)
   pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'bold');
+  pdf.setFont(fontName, 'bold');
   pdf.setTextColor(0, 0, 0);
   pdf.text('معلومات الفاتورة', 20, 45);
   
   pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'normal');
+  pdf.setFont(fontName, 'normal');
   pdf.text(`رقم الفاتورة: ${order.invoiceNumber || 'غير محدد'}`, 20, 52);
   pdf.text(`تاريخ الفاتورة: ${new Intl.DateTimeFormat('ar-SA', {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
   }).format(order.invoiceGeneratedAt || order.createdAt)}`, 20, 58);
-  pdf.text(`رقم الطلب: ${order.id}`, 20, 64);
+  pdf.text(`order n : ${order.id}`, 20, 64);
 
   // Customer Info
   let yPos = 75;
   pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'bold');
+  pdf.setFont(fontName, 'bold');
   pdf.text('معلومات العميل', 20, yPos);
   
   yPos += 7;
   pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'normal');
+  pdf.setFont(fontName, 'normal');
   pdf.text(`الاسم: ${order.customerName}`, 20, yPos);
   yPos += 6;
   pdf.text(`البريد الإلكتروني: ${order.customerEmail}`, 20, yPos);
@@ -3864,7 +3865,7 @@ export const generateInvoicePDF = async (order: Order): Promise<Blob> => {
   // Items Table
   yPos += 15;
   pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'bold');
+  pdf.setFont(fontName, 'bold');
   pdf.text('تفاصيل الطلب', 20, yPos);
 
   yPos += 7;
@@ -3873,7 +3874,7 @@ export const generateInvoicePDF = async (order: Order): Promise<Blob> => {
   pdf.rect(20, yPos - 5, 170, 8, 'F');
   
   pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'bold');
+  pdf.setFont(fontName, 'bold');
   pdf.text('المنتج', 25, yPos);
   pdf.text('الكمية', 120, yPos);
   pdf.text('السعر', 145, yPos);
@@ -3881,11 +3882,11 @@ export const generateInvoicePDF = async (order: Order): Promise<Blob> => {
 
   // Table Row
   yPos += 8;
-  pdf.setFont('helvetica', 'normal');
+  pdf.setFont(fontName, 'normal');
   pdf.text(order.productName, 25, yPos);
   pdf.text(String(order.quantity || 1), 120, yPos);
-  pdf.text(String(order.productPrice || 0), 145, yPos);
-  pdf.text(String(order.totalAmount || 0), 180, yPos);
+  pdf.text(`${order.productPrice || 0} ر.س`, 145, yPos);
+  pdf.text(`${order.totalAmount || 0} ر.س`, 180, yPos);
 
   // Discount info if exists
   if (order.discountCode || order.discountAmount) {
@@ -3893,7 +3894,7 @@ export const generateInvoicePDF = async (order: Order): Promise<Blob> => {
     pdf.setFontSize(9);
     pdf.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
     if (order.originalAmount) {
-      pdf.text(`المبلغ الأصلي: ${order.originalAmount}`, 150, yPos);
+      pdf.text(`المبلغ الأصلي: ${order.originalAmount} ر.س`, 150, yPos);
     }
     if (order.discountCode) {
       yPos += 5;
@@ -3901,7 +3902,7 @@ export const generateInvoicePDF = async (order: Order): Promise<Blob> => {
     }
     if (order.discountAmount) {
       yPos += 5;
-      pdf.text(`الخصم: -${order.discountAmount}`, 150, yPos);
+      pdf.text(`الخصم: -${order.discountAmount} ر.س`, 150, yPos);
     }
     pdf.setTextColor(0, 0, 0);
   }
@@ -3913,23 +3914,23 @@ export const generateInvoicePDF = async (order: Order): Promise<Blob> => {
   
   yPos += 8;
   pdf.setFontSize(14);
-  pdf.setFont('helvetica', 'bold');
+  pdf.setFont(fontName, 'bold');
   pdf.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   pdf.setTextColor(255, 255, 255);
   pdf.rect(120, yPos - 6, 70, 10, 'F');
   
   pdf.text('المبلغ الإجمالي', 135, yPos);
-  pdf.text(String(order.totalAmount || 0), 185, yPos);
+  pdf.text(`${order.totalAmount || 0} ر.س`, 185, yPos);
 
   // Payment Status
   yPos += 15;
   pdf.setTextColor(0, 0, 0);
   pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'normal');
+  pdf.setFont(fontName, 'normal');
   const paymentStatus = order.paymentStatus === 'paid' ? 'مدفوع' : 'غير مدفوع';
   const statusColor = order.paymentStatus === 'paid' ? [34, 197, 94] : [239, 68, 68];
   pdf.setTextColor(statusColor[0], statusColor[1], statusColor[2]);
-  pdf.setFont('helvetica', 'bold');
+  pdf.setFont(fontName, 'bold');
   pdf.text(`حالة الدفع: ${paymentStatus}`, 20, yPos);
   
   // Order Status
@@ -3946,7 +3947,7 @@ export const generateInvoicePDF = async (order: Order): Promise<Blob> => {
   yPos = 280;
   pdf.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
   pdf.setFontSize(8);
-  pdf.setFont('helvetica', 'normal');
+  pdf.setFont(fontName, 'normal');
   pdf.text('شكراً لك على ثقتك بنا!', 105, yPos, { align: 'center' });
   yPos += 5;
   pdf.text('للاستفسارات: ' + companyEmail, 105, yPos, { align: 'center' });
@@ -4003,9 +4004,6 @@ export const generateOrderInvoice = async (orderId: string): Promise<{
       invoiceGeneratedAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
-
-    console.log('✅ Invoice generated successfully:', invoiceNumber);
-
     return {
       invoiceNumber,
       pdfBlob
@@ -4046,10 +4044,6 @@ export const sendInvoiceEmail = async (orderId: string): Promise<void> => {
 
     // Check if email service is enabled
     if (!emailService.enabled || !emailService.apiKey || emailService.apiKey.trim() === '') {
-      console.log('📧 Email service not configured - simulating invoice email:', {
-        to: customerEmail,
-        invoiceNumber,
-      });
       // Update order anyway
       await updateDoc(orderRef, {
         invoiceSentAt: serverTimestamp(),
@@ -4091,7 +4085,7 @@ export const sendInvoiceEmail = async (orderId: string): Promise<void> => {
       },
       body: JSON.stringify({
         to: customerEmail,
-        subject: `فاتورة رقم ${invoiceNumber}`,
+        subject: ` invoice number ${invoiceNumber}`,
         html,
         from: `${emailService.fromName || settings.website.siteName} <${emailService.fromEmail || settings.website.contactEmail}>`,
         replyTo: emailService.replyTo || settings.website.contactEmail,
@@ -4118,12 +4112,6 @@ export const sendInvoiceEmail = async (orderId: string): Promise<void> => {
     });
 
     const result = await response.json();
-    console.log('✅ Invoice email sent:', {
-      to: customerEmail,
-      invoiceNumber,
-      messageId: result.messageId,
-      simulated: result.simulated || false,
-    });
   } catch (error) {
     console.error('Error sending invoice email:', error);
     throw error;
@@ -4144,8 +4132,6 @@ export const downloadInvoicePDF = async (orderId: string): Promise<void> => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    
-    console.log('✅ Invoice downloaded:', invoiceNumber);
   } catch (error) {
     console.error('Error downloading invoice:', error);
     throw error;
@@ -4179,17 +4165,11 @@ export const sendEmailNotification = async (
     // Check if notification type is enabled
     const notificationType = template as keyof typeof emailNotifications;
     if (emailNotifications[notificationType] === false) {
-      console.log(`📧 Email notification ${notificationType} is disabled, skipping...`);
       return;
     }
 
     // Check if email service is enabled
     if (!emailService.enabled || !emailService.apiKey || emailService.apiKey.trim() === '') {
-      console.log('📧 Email service not configured - simulating email:', {
-        to,
-        subject,
-        template,
-      });
       return;
     }
 
@@ -4224,12 +4204,6 @@ export const sendEmailNotification = async (
     }
 
     const result = await response.json();
-    console.log('✅ Email notification sent:', {
-      to,
-      subject,
-      messageId: result.messageId,
-      simulated: result.simulated || false,
-    });
   } catch (error) {
     console.error('Error sending email notification:', error);
     // Don't throw error - email sending failures shouldn't break the flow
@@ -4437,7 +4411,6 @@ const mockCategories: BlogCategory[] = [
 // Blog Categories Functions
 export const getBlogCategories = async (): Promise<BlogCategory[]> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, returning empty array');
     return [];
   }
 
@@ -4463,7 +4436,6 @@ export const getBlogCategories = async (): Promise<BlogCategory[]> => {
 
 export const addBlogCategory = async (categoryData: Omit<BlogCategory, 'id' | 'createdAt' | 'updatedAt' | 'postsCount'>): Promise<string> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, simulating category creation');
     return Date.now().toString();
   }
 
@@ -4485,7 +4457,6 @@ export const addBlogCategory = async (categoryData: Omit<BlogCategory, 'id' | 'c
 // Blog Posts Functions
 export const getBlogPosts = async (limit?: number, category?: string, status?: string): Promise<BlogPost[]> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, returning empty array');
     return [];
   }
 
@@ -4519,10 +4490,7 @@ export const getBlogPosts = async (limit?: number, category?: string, status?: s
 };
 
 export const getBlogPostById = async (id: string): Promise<BlogPost | null> => {
-  console.log('🚀 [GET_BLOG_POST_BY_ID] Called with ID:', id);
-  
   if (!FIREBASE_ENABLED || !db) {
-    console.log('🔍 [GET_BLOG_POST_BY_ID] Firebase not enabled, returning null');
     return null;
   }
 
@@ -4532,17 +4500,10 @@ export const getBlogPostById = async (id: string): Promise<BlogPost | null> => {
     const docSnap = await getDoc(docRef);
     
     if (!docSnap.exists()) {
-      console.log('🔍 [GET_BLOG_POST_BY_ID] No document found for ID:', id);
       return null;
     }
     
     const docData = docSnap.data();
-    console.log('📄 [GET_BLOG_POST_BY_ID] Found document:', {
-      id: docSnap.id,
-      slug: docData.slug,
-      title: docData.title
-    });
-    
     return {
       id: docSnap.id,
       ...docData,
@@ -4558,10 +4519,7 @@ export const getBlogPostById = async (id: string): Promise<BlogPost | null> => {
 };
 
 export const getBlogPost = async (slugOrId: string): Promise<BlogPost | null> => {
-  console.log('🚀 [GET_BLOG_POST] Called with ID/slug:', slugOrId);
-  
   if (!FIREBASE_ENABLED || !db) {
-    console.log('🔍 [GET_BLOG_POST] Firebase not enabled, returning null');
     return null;
   }
 
@@ -4571,18 +4529,11 @@ export const getBlogPost = async (slugOrId: string): Promise<BlogPost | null> =>
     const snapshot = await getDocs(postQuery);
     
     if (snapshot.empty) {
-      console.log('🔍 [GET_BLOG_POST] No document found for slug:', slugOrId);
       return null;
     }
     
     const doc = snapshot.docs[0];
     const docData = doc.data();
-    console.log('📄 [GET_BLOG_POST] Found document:', {
-      id: doc.id,
-      slug: docData.slug,
-      title: docData.title
-    });
-    
     return {
       id: doc.id,
       ...docData,
@@ -4620,8 +4571,6 @@ export const addBlogPost = async (postData: Omit<BlogPost, 'id' | 'createdAt' | 
 };
 
 export const updateBlogPost = async (id: string, postData: Partial<BlogPost>): Promise<void> => {
-  console.log('📝 [UPDATE_BLOG_POST] Called with ID:', id);
-  
   if (!FIREBASE_ENABLED || !db) {
     throw new Error('Firebase is not enabled');
   }
@@ -4635,25 +4584,10 @@ export const updateBlogPost = async (id: string, postData: Partial<BlogPost>): P
       console.error(`❌ [UPDATE_BLOG_POST] Blog post with ID ${id} does not exist`);
       throw new Error(`Blog post with ID ${id} does not exist`);
     }
-    
-    console.log('✅ [UPDATE_BLOG_POST] Document exists, updating...');
-    console.log('📝 [UPDATE_BLOG_POST] Post data to update:', {
-      seoTitle: postData.seoTitle,
-      seoDescription: postData.seoDescription,
-      seoKeywords: postData.seoKeywords,
-      seoImage: postData.seoImage,
-      seoAlt: postData.seoAlt,
-      canonicalUrl: postData.canonicalUrl,
-      robotsIndex: postData.robotsIndex,
-      robotsFollow: postData.robotsFollow,
-      seo: postData.seo
-    });
-    
     await updateDoc(docRef, {
       ...postData,
       updatedAt: serverTimestamp()
     });
-    console.log('✅ [UPDATE_BLOG_POST] Successfully updated blog post');
   } catch (error) {
     console.error('❌ [UPDATE_BLOG_POST] Error updating blog post:', error);
     throw error;
@@ -4687,7 +4621,6 @@ function generateFirebaseId(): string {
 
 export const getBlogTags = async (): Promise<BlogTag[]> => {
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, returning empty array');
     return [];
   }
 
@@ -4744,7 +4677,6 @@ export const updateBlogPostLikes = async (postId: string, likesCount: number): P
       });
     }
     // Mock implementation for development
-    console.log(`Updated likes for post ${postId} to ${likesCount}`);
   } catch (error) {
     console.error('Error updating blog post likes:', error);
     throw error;
@@ -4752,8 +4684,6 @@ export const updateBlogPostLikes = async (postId: string, likesCount: number): P
 };
 
 export const incrementBlogPostViews = async (postId: string): Promise<void> => {
-  console.log('👁️ [INCREMENT_VIEWS] Called with postId:', postId);
-  
   try {
     if (USE_FIREBASE) {
       // Check if document exists before updating
@@ -4765,16 +4695,12 @@ export const incrementBlogPostViews = async (postId: string): Promise<void> => {
         console.warn(`⚠️ [INCREMENT_VIEWS] Blog post with ID ${postId} does not exist`);
         return;
       }
-      
-      console.log('✅ [INCREMENT_VIEWS] Document exists, updating view count');
       await updateDoc(docRef, {
         viewCount: increment(1),
         updatedAt: serverTimestamp()
       });
-      console.log('✅ [INCREMENT_VIEWS] Successfully incremented view count');
     }
     // Mock implementation for development
-    console.log(`📊 [INCREMENT_VIEWS] Mock: Incremented views for post ${postId}`);
   } catch (error) {
     console.error('❌ [INCREMENT_VIEWS] Error incrementing blog post views:', error);
     throw error;
@@ -4817,10 +4743,7 @@ export const getFeaturedBlogPosts = async (limit = 3): Promise<BlogPost[]> => {
 
 // Add subscription review
 export const addSubscriptionReview = async (reviewData: Omit<SubscriptionReview, 'id' | 'createdAt' | 'updatedAt'>): Promise<string> => {
-  console.log('📝 [ADD_SUBSCRIPTION_REVIEW] Adding review:', reviewData);
-  
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, returning mock review ID');
     return 'mock-review-' + Date.now();
   }
 
@@ -4831,8 +4754,6 @@ export const addSubscriptionReview = async (reviewData: Omit<SubscriptionReview,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
-    
-    console.log('✅ [ADD_SUBSCRIPTION_REVIEW] Review added with ID:', docRef.id);
     return docRef.id;
   } catch (error) {
     console.error('❌ [ADD_SUBSCRIPTION_REVIEW] Error adding review:', error);
@@ -4842,10 +4763,7 @@ export const addSubscriptionReview = async (reviewData: Omit<SubscriptionReview,
 
 // Get subscription reviews
 export const getSubscriptionReviews = async (subscriptionId?: string, productId?: string, status?: string): Promise<SubscriptionReview[]> => {
-  console.log('📖 [GET_SUBSCRIPTION_REVIEWS] Getting reviews for:', { subscriptionId, productId, status });
-  
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, returning mock reviews');
     return [];
   }
 
@@ -4871,10 +4789,8 @@ export const getSubscriptionReviews = async (subscriptionId?: string, productId?
       ...(doc.data() as any),
       createdAt: (doc.data() as any).createdAt?.toDate() || new Date(),
       updatedAt: (doc.data() as any).updatedAt?.toDate() || new Date()
-    })) as SubscriptionReview[];
-    
-    console.log('✅ [GET_SUBSCRIPTION_REVIEWS] Reviews loaded:', reviews.length);
-    return reviews;
+
+    })) as SubscriptionReview[];    return reviews;
   } catch (error) {
     console.error('❌ [GET_SUBSCRIPTION_REVIEWS] Error getting reviews:', error);
     return [];
@@ -4883,10 +4799,7 @@ export const getSubscriptionReviews = async (subscriptionId?: string, productId?
 
 // Get customer reviews
 export const getCustomerReviews = async (customerEmail: string): Promise<SubscriptionReview[]> => {
-  console.log('📖 [GET_CUSTOMER_REVIEWS] Getting reviews for customer:', customerEmail);
-  
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, returning mock reviews');
     return [];
   }
 
@@ -4906,7 +4819,6 @@ export const getCustomerReviews = async (customerEmail: string): Promise<Subscri
       updatedAt: (doc.data() as any).updatedAt?.toDate() || new Date()
     })) as SubscriptionReview[];
     
-    console.log('✅ [GET_CUSTOMER_REVIEWS] Customer reviews loaded:', reviews.length);
     return reviews;
   } catch (error) {
     console.error('❌ [GET_CUSTOMER_REVIEWS] Error getting customer reviews:', error);
@@ -4916,10 +4828,8 @@ export const getCustomerReviews = async (customerEmail: string): Promise<Subscri
 
 // Update subscription review
 export const updateSubscriptionReview = async (reviewId: string, updates: Partial<SubscriptionReview>): Promise<void> => {
-  console.log('📝 [UPDATE_SUBSCRIPTION_REVIEW] Updating review:', reviewId);
   
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, simulating review update');
     return;
   }
 
@@ -4930,7 +4840,6 @@ export const updateSubscriptionReview = async (reviewId: string, updates: Partia
       updatedAt: serverTimestamp()
     });
     
-    console.log('✅ [UPDATE_SUBSCRIPTION_REVIEW] Review updated successfully');
   } catch (error) {
     console.error('❌ [UPDATE_SUBSCRIPTION_REVIEW] Error updating review:', error);
     throw error;
@@ -4939,10 +4848,8 @@ export const updateSubscriptionReview = async (reviewId: string, updates: Partia
 
 // Delete subscription review
 export const deleteSubscriptionReview = async (reviewId: string): Promise<void> => {
-  console.log('🗑️ [DELETE_SUBSCRIPTION_REVIEW] Deleting review:', reviewId);
   
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, simulating review deletion');
     return;
   }
 
@@ -4950,7 +4857,6 @@ export const deleteSubscriptionReview = async (reviewId: string): Promise<void> 
     const reviewRef = doc(db, 'subscriptionReviews', reviewId);
     await deleteDoc(reviewRef);
     
-    console.log('✅ [DELETE_SUBSCRIPTION_REVIEW] Review deleted successfully');
   } catch (error) {
     console.error('❌ [DELETE_SUBSCRIPTION_REVIEW] Error deleting review:', error);
     throw error;
@@ -4959,10 +4865,8 @@ export const deleteSubscriptionReview = async (reviewId: string): Promise<void> 
 
 // Check if customer can review subscription
 export const canCustomerReviewSubscription = async (customerEmail: string, subscriptionId: string): Promise<boolean> => {
-  console.log('🔍 [CAN_CUSTOMER_REVIEW] Checking if customer can review:', { customerEmail, subscriptionId });
   
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, allowing review');
     return true;
   }
 
@@ -4974,7 +4878,6 @@ export const canCustomerReviewSubscription = async (customerEmail: string, subsc
     );
     
     if (hasExistingReview) {
-      console.log('❌ [CAN_CUSTOMER_REVIEW] Customer already reviewed this subscription');
       return false;
     }
     
@@ -4983,11 +4886,9 @@ export const canCustomerReviewSubscription = async (customerEmail: string, subsc
     const hasSubscription = customerSubscriptions.some(sub => sub.id === subscriptionId);
     
     if (!hasSubscription) {
-      console.log('❌ [CAN_CUSTOMER_REVIEW] Customer does not have this subscription');
       return false;
     }
     
-    console.log('✅ [CAN_CUSTOMER_REVIEW] Customer can review this subscription');
     return true;
   } catch (error) {
     console.error('❌ [CAN_CUSTOMER_REVIEW] Error checking review eligibility:', error);
@@ -4997,10 +4898,8 @@ export const canCustomerReviewSubscription = async (customerEmail: string, subsc
 
 // Get product average rating
 export const getProductAverageRating = async (productId: string): Promise<{ average: number; count: number }> => {
-  console.log('📊 [GET_PRODUCT_AVERAGE_RATING] Getting rating for product:', productId);
   
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, returning mock rating');
     return { average: 4.5, count: 10 };
   }
 
@@ -5014,7 +4913,6 @@ export const getProductAverageRating = async (productId: string): Promise<{ aver
     const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
     const average = totalRating / reviews.length;
     
-    console.log('✅ [GET_PRODUCT_AVERAGE_RATING] Product rating calculated:', { average, count: reviews.length });
     return { average: Math.round(average * 10) / 10, count: reviews.length };
   } catch (error) {
     console.error('❌ [GET_PRODUCT_AVERAGE_RATING] Error getting product rating:', error);
@@ -5024,10 +4922,8 @@ export const getProductAverageRating = async (productId: string): Promise<{ aver
 
 // Update product review statistics
 export const updateProductReviewStats = async (productId: string): Promise<void> => {
-  console.log('📊 [UPDATE_PRODUCT_REVIEW_STATS] Updating stats for product:', productId);
   
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, skipping product stats update');
     return;
   }
 
@@ -5048,11 +4944,7 @@ export const updateProductReviewStats = async (productId: string): Promise<void>
       updatedAt: serverTimestamp()
     });
 
-    console.log('✅ [UPDATE_PRODUCT_REVIEW_STATS] Product stats updated:', {
-      productId,
-      reviewsCount,
-      averageRating
-    });
+  
   } catch (error) {
     console.error('❌ [UPDATE_PRODUCT_REVIEW_STATS] Error updating product stats:', error);
     throw error;
@@ -5061,10 +4953,8 @@ export const updateProductReviewStats = async (productId: string): Promise<void>
 
 // Update all products review statistics
 export const updateAllProductsReviewStats = async (): Promise<void> => {
-  console.log('📊 [UPDATE_ALL_PRODUCTS_REVIEW_STATS] Updating stats for all products');
   
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, skipping products stats update');
     return;
   }
 
@@ -5075,7 +4965,6 @@ export const updateAllProductsReviewStats = async (): Promise<void> => {
       await updateProductReviewStats(product.id);
     }
 
-    console.log('✅ [UPDATE_ALL_PRODUCTS_REVIEW_STATS] All products stats updated');
   } catch (error) {
     console.error('❌ [UPDATE_ALL_PRODUCTS_REVIEW_STATS] Error updating all products stats:', error);
     throw error;
@@ -5084,10 +4973,8 @@ export const updateAllProductsReviewStats = async (): Promise<void> => {
 
 // Add sample reviews for testing
 export const addSampleReviews = async (): Promise<void> => {
-  console.log('📝 [ADD_SAMPLE_REVIEWS] Adding sample reviews for testing');
   
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, skipping sample reviews');
     return;
   }
 
@@ -5211,9 +5098,199 @@ export const addSampleReviews = async (): Promise<void> => {
       await addSubscriptionReview(reviewData);
     }
 
-    console.log('✅ [ADD_SAMPLE_REVIEWS] Sample reviews added successfully');
   } catch (error) {
     console.error('❌ [ADD_SAMPLE_REVIEWS] Error adding sample reviews:', error);
     throw error;
   }
 };
+
+// Categories CRUD Functions
+export const getCategories = async (): Promise<Category[]> => {
+  if (!FIREBASE_ENABLED || !db || !categoriesCollection) {
+    // Mock data for development
+    return [
+      {
+        id: '1',
+        name: 'البث المباشر',
+        nameEn: 'Streaming',
+        slug: 'streaming',
+        description: 'خدمات البث المباشر والاشتراكات',
+        icon: '📺',
+        color: '#3b82f6',
+        order: 1,
+        isActive: true,
+        productsCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: '2',
+        name: 'الألعاب',
+        nameEn: 'Gaming',
+        slug: 'gaming',
+        description: 'اشتراكات الألعاب والمنصات',
+        icon: '🎮',
+        color: '#8b5cf6',
+        order: 2,
+        isActive: true,
+        productsCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: '3',
+        name: 'الموسيقى',
+        nameEn: 'Music',
+        slug: 'music',
+        description: 'خدمات الموسيقى والبودكاست',
+        icon: '🎵',
+        color: '#10b981',
+        order: 3,
+        isActive: true,
+        productsCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+  }
+
+  try {
+    const q = query(categoriesCollection, orderBy('order', 'asc'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...(doc.data() as any),
+      createdAt: (doc.data() as any).createdAt?.toDate() || new Date(),
+      updatedAt: (doc.data() as any).updatedAt?.toDate() || new Date(),
+    })) as Category[];
+  } catch (error) {
+    console.error('Error getting categories:', error);
+    return [];
+  }
+};
+
+export const getCategoryById = async (id: string): Promise<Category | null> => {
+  if (!FIREBASE_ENABLED || !db) {
+    return null;
+  }
+
+  try {
+    const categoryDoc = await getDoc(doc(db, 'categories', id));
+    if (categoryDoc.exists()) {
+      const data = categoryDoc.data();
+      return {
+        id: categoryDoc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date(),
+      } as Category;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting category:', error);
+    return null;
+  }
+};
+
+export const addCategory = async (category: Omit<Category, 'id' | 'createdAt' | 'updatedAt' | 'productsCount'>): Promise<string> => {
+  if (!FIREBASE_ENABLED || !db || !categoriesCollection) {
+    return Promise.resolve('mock-category-id');
+  }
+
+  try {
+    // Generate slug if not provided
+    const slug = category.slug || category.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    
+    // Filter out undefined values
+    const categoryData: Record<string, any> = {
+      name: category.name,
+      slug,
+      order: category.order,
+      isActive: category.isActive,
+      productsCount: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    // Only add optional fields if they have values
+    if (category.nameEn) categoryData.nameEn = category.nameEn;
+    if (category.description) categoryData.description = category.description;
+    if (category.icon) categoryData.icon = category.icon;
+    if (category.color) categoryData.color = category.color;
+    if (category.parentId) categoryData.parentId = category.parentId;
+    
+    const docRef = await addDoc(categoriesCollection, categoryData);
+    return docRef.id;
+  } catch (error) {
+    console.error('Error adding category:', error);
+    throw error;
+  }
+};
+
+export const updateCategory = async (id: string, updates: Partial<Category>): Promise<void> => {
+  if (!FIREBASE_ENABLED || !db) {
+    return Promise.resolve();
+  }
+
+  try {
+    const categoryRef = doc(db, 'categories', id);
+    const filteredUpdates: Record<string, any> = {};
+    
+    Object.entries(updates).forEach(([key, value]) => {
+      // Skip undefined values, id, and timestamp fields
+      if (value !== undefined && value !== null && key !== 'id' && key !== 'createdAt' && key !== 'updatedAt') {
+        filteredUpdates[key] = value;
+      }
+    });
+
+    // Handle empty strings for optional fields - remove them if they should be deleted
+    if (updates.parentId === '' || updates.parentId === null) {
+      filteredUpdates.parentId = null;
+    }
+
+    filteredUpdates.updatedAt = serverTimestamp();
+    
+    // Only update if we have valid fields (more than just updatedAt)
+    if (Object.keys(filteredUpdates).length > 1) {
+      await updateDoc(categoryRef, filteredUpdates);
+    }
+  } catch (error) {
+    console.error('Error updating category:', error);
+    throw error;
+  }
+};
+
+export const deleteCategory = async (id: string): Promise<void> => {
+  if (!FIREBASE_ENABLED || !db) {
+    return Promise.resolve();
+  }
+
+  try {
+    await deleteDoc(doc(db, 'categories', id));
+  } catch (error) {
+    console.error('Error deleting category:', error);
+    throw error;
+  }
+};
+
+export const subscribeToCategories = (callback: (categories: Category[]) => void) => {
+  if (!FIREBASE_ENABLED || !db || !categoriesCollection) {
+    callback([]);
+    return () => {};
+  }
+
+  const q = query(categoriesCollection, orderBy('order', 'asc'));
+  return onSnapshot(q, (querySnapshot) => {
+    const categories = querySnapshot.docs.map(doc => {
+      const data = doc.data() as any;
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate() || new Date(),
+        updatedAt: data.updatedAt?.toDate() || new Date(),
+      };
+    }) as Category[];
+    callback(categories);
+  });
+};
+

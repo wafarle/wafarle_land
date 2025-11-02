@@ -51,7 +51,7 @@ export default function BlogPageClient() {
   const filteredPosts = posts.filter(post => {
     const matchesSearch = post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (post.excerpt?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
-    const matchesCategory = selectedCategory === 'all' || post.categoryId === selectedCategory;
+    const matchesCategory = selectedCategory === 'all' || (post.categories && post.categories.includes(selectedCategory));
     const isPublished = post.status === 'published';
     return matchesSearch && matchesCategory && isPublished;
   });
@@ -92,7 +92,7 @@ export default function BlogPageClient() {
       "dateModified": post.updatedAt.toISOString(),
       "author": {
         "@type": "Person",
-        "name": post.authorName
+        "name": post.author
       },
       "image": post.seoImage || post.seo?.image || post.featuredImage
     }))
@@ -211,7 +211,7 @@ export default function BlogPageClient() {
                       </div>
                       <div className="flex items-center gap-1">
                         <Eye className="w-4 h-4" />
-                        <span>{post.viewCount}</span>
+                        <span>{post.views}</span>
                       </div>
                     </div>
                   </Link>
@@ -284,7 +284,7 @@ export default function BlogPageClient() {
                       </div>
                       <div className="flex items-center gap-1">
                         <Eye className="w-4 h-4" />
-                        <span>{post.viewCount}</span>
+                        <span>{post.views}</span>
                       </div>
                     </div>
                   </Link>

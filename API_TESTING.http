@@ -1,0 +1,228 @@
+# 🧪 ملف اختبار APIs - يمكن استخدامه مع VS Code REST Client
+
+### ========================================
+### 🔑 LICENSES APIs
+### ========================================
+
+### 1. GET - جلب جميع التراخيص
+GET http://localhost:3000/api/licenses
+Content-Type: application/json
+
+###
+
+### 2. POST - إنشاء ترخيص جديد
+POST http://localhost:3000/api/licenses
+Content-Type: application/json
+
+{
+  "customerName": "محمد أحمد",
+  "customerEmail": "mohamed@example.com",
+  "customerPhone": "+966501234567",
+  "domain": "store.example.com",
+  "type": "professional",
+  "isPermanent": false,
+  "features": [
+    "unlimited_products",
+    "advanced_analytics",
+    "priority_support"
+  ],
+  "maxProducts": 1000,
+  "maxOrders": 10000,
+  "notes": "عميل مهم - تجريبي لمدة شهر",
+  "version": "1.0.0"
+}
+
+###
+
+### 3. GET - جلب ترخيص محدد (استبدل LICENSE_ID)
+GET http://localhost:3000/api/licenses/LICENSE_ID
+Content-Type: application/json
+
+###
+
+### 4. PUT - تحديث ترخيص (استبدل LICENSE_ID)
+PUT http://localhost:3000/api/licenses/LICENSE_ID
+Content-Type: application/json
+
+{
+  "status": "active",
+  "isActive": true,
+  "notes": "تم التفعيل بنجاح"
+}
+
+###
+
+### 5. DELETE - حذف ترخيص (استبدل LICENSE_ID)
+DELETE http://localhost:3000/api/licenses/LICENSE_ID
+Content-Type: application/json
+
+###
+
+### 6. POST - التحقق من ترخيص
+POST http://localhost:3000/api/licenses/verify
+Content-Type: application/json
+
+{
+  "licenseKey": "XXXX-YYYY-ZZZZ-WWWW",
+  "domain": "store.example.com",
+  "currentVersion": "1.0.0"
+}
+
+###
+
+### ========================================
+### 📦 VERSIONS APIs
+### ========================================
+
+### 7. GET - جلب جميع الإصدارات
+GET http://localhost:3000/api/versions
+Content-Type: application/json
+
+###
+
+### 8. GET - جلب آخر إصدار
+GET http://localhost:3000/api/versions?latest=true
+Content-Type: application/json
+
+###
+
+### 9. POST - إنشاء إصدار جديد
+POST http://localhost:3000/api/versions
+Content-Type: application/json
+
+{
+  "version": "1.5.0",
+  "title": "تحديث مهم - إضافة ميزات جديدة",
+  "description": "هذا الإصدار يتضمن تحسينات كبيرة في الأداء وميزات جديدة",
+  "isLatest": true,
+  "isStable": true,
+  "isBeta": false,
+  "features": [
+    "إضافة لوحة تحكم محسنة",
+    "دعم الدفع بالعملات المتعددة",
+    "تحسين سرعة التحميل بنسبة 50%",
+    "إضافة تقارير تفصيلية"
+  ],
+  "bugFixes": [
+    "إصلاح مشكلة في عرض الصور",
+    "إصلاح مشكلة في حفظ البيانات",
+    "تحسين التوافق مع المتصفحات"
+  ],
+  "breaking": [
+    "تغيير في API للمصادقة - يتطلب تحديث",
+    "إزالة دعم الإصدارات الأقدم من 1.0.0"
+  ],
+  "downloadUrl": "https://example.com/downloads/v1.5.0.zip",
+  "documentationUrl": "https://docs.example.com/v1.5.0",
+  "minRequiredVersion": "1.0.0",
+  "supportedLicenseTypes": ["basic", "professional", "enterprise"],
+  "releaseNotes": "هذا الإصدار يتضمن تحديثات أمنية مهمة ويُنصح بالتحديث فوراً"
+}
+
+###
+
+### 10. PUT - تحديث إصدار (استبدل VERSION_ID)
+PUT http://localhost:3000/api/versions/VERSION_ID
+Content-Type: application/json
+
+{
+  "isLatest": false,
+  "isStable": true,
+  "releaseNotes": "تم تحديث الملاحظات"
+}
+
+###
+
+### 11. DELETE - حذف إصدار (استبدل VERSION_ID)
+DELETE http://localhost:3000/api/versions/VERSION_ID
+Content-Type: application/json
+
+###
+
+### ========================================
+### 🔄 UPDATES APIs
+### ========================================
+
+### 12. POST - فحص التحديثات
+POST http://localhost:3000/api/check-updates
+Content-Type: application/json
+
+{
+  "licenseKey": "XXXX-YYYY-ZZZZ-WWWW",
+  "domain": "store.example.com",
+  "currentVersion": "1.0.0"
+}
+
+###
+
+### ========================================
+### 📊 اختبارات متقدمة
+### ========================================
+
+### 13. إنشاء عدة تراخيص للاختبار
+POST http://localhost:3000/api/licenses
+Content-Type: application/json
+
+{
+  "customerName": "فاطمة علي",
+  "customerEmail": "fatima@example.com",
+  "domain": "shop.example.com",
+  "type": "basic",
+  "isPermanent": true,
+  "features": ["basic_features"],
+  "version": "1.0.0"
+}
+
+###
+
+POST http://localhost:3000/api/licenses
+Content-Type: application/json
+
+{
+  "customerName": "أحمد خالد",
+  "customerEmail": "ahmed@example.com",
+  "domain": "boutique.example.com",
+  "type": "enterprise",
+  "isPermanent": false,
+  "expiryDate": "2025-12-31",
+  "features": [
+    "unlimited_products",
+    "advanced_analytics",
+    "priority_support",
+    "custom_branding",
+    "api_access"
+  ],
+  "maxProducts": 10000,
+  "maxOrders": 100000,
+  "version": "1.0.0"
+}
+
+###
+
+### ========================================
+### 🔐 اختبار مع API Key (إذا كنت تستخدم مصادقة)
+### ========================================
+
+@apiKey = your-secret-api-key-here
+
+### GET مع API Key
+GET http://localhost:3000/api/licenses
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+###
+
+### POST مع API Key
+POST http://localhost:3000/api/licenses
+Content-Type: application/json
+X-API-Key: {{apiKey}}
+
+{
+  "customerName": "تست",
+  "customerEmail": "test@example.com",
+  "domain": "test.example.com",
+  "type": "trial"
+}
+
+###
+

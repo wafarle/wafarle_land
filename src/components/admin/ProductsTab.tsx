@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Edit, Trash2, Search, Filter, Star, X, Clock, Tag, Zap, Package, AlertCircle } from 'lucide-react';
-import { Product, ProductOption, ProductType } from '@/lib/firebase';
+import { Plus, Edit, Trash2, Search, Filter, Star, X, Clock, Tag, Zap, Package, AlertCircle, XCircle } from 'lucide-react';
+import { Product, ProductOption, ProductType, Category } from '@/lib/firebase';
+import { getCategories } from '@/lib/database';
 import CurrencyDisplay from '@/components/CurrencyDisplay';
 
 // Products Tab Component
@@ -199,13 +200,31 @@ export const ProductForm = ({
   onClose: () => void;
   onSave: (product: Omit<Product, 'id' | 'createdAt'>) => void;
 }) => {
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(
+    product?.categories || (product?.category ? [product.category] : [])
+  );
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const cats = await getCategories();
+        setCategories(cats.filter(c => c.isActive));
+      } catch (error) {
+        console.error('Error loading categories:', error);
+      }
+    };
+    loadCategories();
+  }, []);
+
   const [formData, setFormData] = useState({
     name: product?.name || '',
     price: product?.price || 0,
     image: product?.image || '',
+    images: product?.images || (product?.image ? [product.image] : []),
     externalLink: product?.externalLink || '',
     description: product?.description || '',
-    category: product?.category || '',
+    category: product?.category || '', // للتوافق
     discount: product?.discount || '',
     rating: product?.rating || 0,
     features: product?.features || [],
@@ -228,6 +247,12 @@ export const ProductForm = ({
     stock: product?.stock || 0,
     lowStockThreshold: product?.lowStockThreshold || 10,
     outOfStock: product?.outOfStock || false,
+    // Product Options (Colors & Sizes)
+    colors: product?.colors || [],
+    sizes: product?.sizes || [],
+    showColors: product?.showColors !== undefined ? product.showColors : false,
+    showSizes: product?.showSizes !== undefined ? product.showSizes : false,
+    showQuantity: product?.showQuantity !== undefined ? product.showQuantity : true,
   });
 
   const [currentOption, setCurrentOption] = useState<Partial<ProductOption>>({
@@ -316,6 +341,27 @@ export const ProductForm = ({
 
     // تنظيف البيانات: إزالة الحقول غير المستخدمة حسب نوع المنتج
     const cleanedData: any = { ...formData };
+    
+    // Handle images array
+    if (cleanedData.images && cleanedData.images.length > 0) {
+      cleanedData.images = cleanedData.images;
+      // Set first image as main image for backward compatibility
+      cleanedData.image = cleanedData.images[0];
+    } else if (cleanedData.image) {
+      // If no images array but has image, create array from single image
+      cleanedData.images = [cleanedData.image];
+    }
+    
+    // Add categories array
+    if (selectedCategories.length > 0) {
+      cleanedData.categories = selectedCategories;
+      // Keep category for backward compatibility if only one category selected
+      if (selectedCategories.length === 1) {
+        cleanedData.category = selectedCategories[0];
+      }
+    } else {
+      cleanedData.categories = [];
+    }
     
     if (formData.productType !== 'physical') {
       delete cleanedData.weight;
@@ -416,6 +462,164 @@ export const ProductForm = ({
             />
           </div>
 
+          {/* صور المنتج */}
+          <div>
+            <label className="block text-sm font-semibold text-white/90 mb-2">
+              صور المنتج (يمكن إضافة أكثر من صورة)
+            </label>
+            <div className="space-y-4">
+              {/* عرض الصور الحالية */}
+              {formData.images.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {formData.images.map((img, index) => (
+                    <div key={index} className="relative group">
+                      <div className="aspect-square rounded-xl overflow-hidden border-2 border-white/20 bg-white/5">
+                        <img
+                          src={img}
+                          alt={`صورة ${index + 1}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = '/api/placeholder/300/200';
+                          }}
+                        />
+                      </div>
+                      <div className="absolute top-2 left-2 flex gap-1">
+                        {index === 0 && (
+                          <span className="px-2 py-1 bg-blue-500 text-white text-xs rounded-lg">
+                            رئيسية
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newImages = formData.images.filter((_, i) => i !== index);
+                            setFormData({
+                              ...formData,
+                              images: newImages,
+                              image: index === 0 && newImages.length > 0 ? newImages[0] : (newImages.length > 0 ? newImages[0] : '')
+                            });
+                          }}
+                          className="p-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
+                          title="حذف الصورة"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {index !== 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newImages = [...formData.images];
+                            [newImages[0], newImages[index]] = [newImages[index], newImages[0]];
+                            setFormData({
+                              ...formData,
+                              images: newImages,
+                              image: newImages[0]
+                            });
+                          }}
+                          className="absolute bottom-2 left-2 px-2 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-lg transition-colors"
+                          title="تعيين كصورة رئيسية"
+                        >
+                          رئيسية
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* رفع صور جديدة */}
+              <div className="flex flex-col gap-3">
+                <label className="cursor-pointer">
+                  <div className="border-2 border-dashed border-white/30 rounded-xl p-6 text-center hover:border-blue-400 transition-all bg-white/5">
+                    <Package className="w-8 h-8 text-white/60 mx-auto mb-2" />
+                    <span className="text-white/80 text-sm font-medium block mb-1">
+                      اضغط لإضافة صور جديدة
+                    </span>
+                    <span className="text-white/50 text-xs">
+                      يمكن رفع أكثر من صورة
+                    </span>
+                  </div>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length === 0) return;
+
+                      files.forEach((file) => {
+                        if (file.size > 5 * 1024 * 1024) {
+                          alert(`صورة ${file.name} كبيرة جداً (الحد الأقصى 5MB)`);
+                          return;
+                        }
+
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          const imageUrl = event.target?.result as string;
+                          const newImages = [...formData.images, imageUrl];
+                          setFormData({
+                            ...formData,
+                            images: newImages,
+                            image: formData.images.length === 0 ? imageUrl : formData.image
+                          });
+                        };
+                        reader.readAsDataURL(file);
+                      });
+                    }}
+                  />
+                </label>
+
+                {/* أو إدخال رابط صورة */}
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="أو أدخل رابط صورة"
+                    className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all duration-300"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const url = (e.target as HTMLInputElement).value.trim();
+                        if (url) {
+                          const newImages = [...formData.images, url];
+                          setFormData({
+                            ...formData,
+                            images: newImages,
+                            image: formData.images.length === 0 ? url : formData.image
+                          });
+                          (e.target as HTMLInputElement).value = '';
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                      const url = input.value.trim();
+                      if (url) {
+                        const newImages = [...formData.images, url];
+                        setFormData({
+                          ...formData,
+                          images: newImages,
+                          image: formData.images.length === 0 ? url : formData.image
+                        });
+                        input.value = '';
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-xl font-medium transition-colors"
+                  >
+                    إضافة
+                  </button>
+                </div>
+              </div>
+            </div>
+            <p className="text-xs text-white/60 mt-2">
+              الصورة الأولى ستكون الصورة الرئيسية. يمكنك السحب لإعادة ترتيب الصور.
+            </p>
+          </div>
+
           <div>
             <label className="block text-sm font-semibold text-white/90 mb-2">
               الوصف
@@ -427,6 +631,76 @@ export const ProductForm = ({
               className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-2xl text-white placeholder-white/50 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all duration-300 resize-none"
               placeholder="أدخل وصف المنتج"
             />
+          </div>
+
+          {/* Categories Selection */}
+          <div>
+            <label className="block text-sm font-semibold text-white/90 mb-2">
+              التصنيفات (يمكن اختيار أكثر من تصنيف)
+            </label>
+            {categories.length === 0 ? (
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
+                <p className="text-yellow-400 text-sm flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  لا توجد تصنيفات متاحة. يرجى إضافة تصنيفات من تبويب التصنيفات أولاً.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-3">
+                  {categories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => {
+                        if (selectedCategories.includes(cat.id)) {
+                          setSelectedCategories(selectedCategories.filter(id => id !== cat.id));
+                        } else {
+                          setSelectedCategories([...selectedCategories, cat.id]);
+                        }
+                      }}
+                      className={`px-4 py-2 rounded-xl font-medium transition-all duration-200 border-2 ${
+                        selectedCategories.includes(cat.id)
+                          ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white border-blue-400 shadow-lg'
+                          : 'bg-white/10 text-white/70 border-white/20 hover:bg-white/20 hover:border-white/30'
+                      }`}
+                      style={selectedCategories.includes(cat.id) && cat.color ? {
+                        background: `linear-gradient(135deg, ${cat.color}, ${cat.color}dd)`,
+                        borderColor: cat.color
+                      } : {}}
+                    >
+                      <div className="flex items-center gap-2">
+                        {cat.icon && <span>{cat.icon}</span>}
+                        <span>{cat.name}</span>
+                        {selectedCategories.includes(cat.id) && (
+                          <X className="w-4 h-4" />
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                {selectedCategories.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs text-white/60 mb-2">التصنيفات المختارة:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedCategories.map(catId => {
+                        const cat = categories.find(c => c.id === catId);
+                        return cat ? (
+                          <span
+                            key={catId}
+                            className="inline-flex items-center gap-1 px-3 py-1 rounded-lg text-xs font-medium text-white"
+                            style={{ backgroundColor: cat.color + '40', border: `1px solid ${cat.color}80` }}
+                          >
+                            {cat.icon && <span>{cat.icon}</span>}
+                            {cat.name}
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* نوع المنتج */}
@@ -922,6 +1196,159 @@ export const ProductForm = ({
                 )}
               </motion.div>
             )}
+
+            {/* Product Options (Colors & Sizes) */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-6"
+            >
+              <h4 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Package className="w-5 h-5" />
+                خيارات المنتج (ألوان ومقاسات)
+              </h4>
+
+              {/* Enable/Disable Options */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                  <label className="text-white/80 text-sm">إظهار اختيار الألوان</label>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, showColors: !formData.showColors })}
+                    className={`relative w-14 h-8 rounded-full transition-colors ${
+                      formData.showColors ? 'bg-green-500' : 'bg-gray-600'
+                    }`}
+                  >
+                    <div className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform ${
+                      formData.showColors ? 'translate-x-6' : ''
+                    }`}></div>
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                  <label className="text-white/80 text-sm">إظهار اختيار المقاسات</label>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, showSizes: !formData.showSizes })}
+                    className={`relative w-14 h-8 rounded-full transition-colors ${
+                      formData.showSizes ? 'bg-green-500' : 'bg-gray-600'
+                    }`}
+                  >
+                    <div className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform ${
+                      formData.showSizes ? 'translate-x-6' : ''
+                    }`}></div>
+                  </button>
+                </div>
+
+                {/* Quantity Selector - Only for physical products */}
+                {formData.productType === 'physical' && (
+                  <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                    <label className="text-white/80 text-sm">إظهار محدد الكمية</label>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, showQuantity: !formData.showQuantity })}
+                      className={`relative w-14 h-8 rounded-full transition-colors ${
+                        formData.showQuantity ? 'bg-green-500' : 'bg-gray-600'
+                      }`}
+                    >
+                      <div className={`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform ${
+                        formData.showQuantity ? 'translate-x-6' : ''
+                      }`}></div>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Colors Management */}
+              {formData.showColors && (
+                <div>
+                  <label className="block text-sm font-semibold text-white/90 mb-3">
+                    الألوان المتاحة
+                  </label>
+                  <div className="flex flex-wrap gap-3 mb-4">
+                    {formData.colors.map((color, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <input
+                          type="color"
+                          value={color}
+                          onChange={(e) => {
+                            const newColors = [...formData.colors];
+                            newColors[index] = e.target.value;
+                            setFormData({ ...formData, colors: newColors });
+                          }}
+                          className="w-12 h-12 rounded-lg border border-white/20 cursor-pointer"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newColors = formData.colors.filter((_, i) => i !== index);
+                            setFormData({ ...formData, colors: newColors });
+                          }}
+                          className="text-red-400 hover:text-red-300"
+                        >
+                          <XCircle className="w-5 h-5" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({ ...formData, colors: [...formData.colors, '#000000'] });
+                      }}
+                      className="w-12 h-12 rounded-lg border-2 border-dashed border-white/30 text-white/50 hover:border-white/50 hover:text-white flex items-center justify-center"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Sizes Management */}
+              {formData.showSizes && (
+                <div>
+                  <label className="block text-sm font-semibold text-white/90 mb-3">
+                    المقاسات المتاحة
+                  </label>
+                  <div className="flex flex-wrap gap-3 mb-4">
+                    {formData.sizes.map((size, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={size}
+                          onChange={(e) => {
+                            const newSizes = [...formData.sizes];
+                            newSizes[index] = e.target.value;
+                            setFormData({ ...formData, sizes: newSizes });
+                          }}
+                          className="px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="المقاس"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newSizes = formData.sizes.filter((_, i) => i !== index);
+                            setFormData({ ...formData, sizes: newSizes });
+                          }}
+                          className="text-red-400 hover:text-red-300"
+                        >
+                          <XCircle className="w-5 h-5" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({ ...formData, sizes: [...formData.sizes, ''] });
+                      }}
+                      className="px-4 py-2 rounded-lg border-2 border-dashed border-white/30 text-white/50 hover:border-white/50 hover:text-white flex items-center gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>إضافة مقاس</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
           </div>
 
           <div className="flex gap-4 pt-4">

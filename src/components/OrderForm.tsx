@@ -18,9 +18,10 @@ interface OrderFormProps {
   product: Product;
   isOpen: boolean;
   onClose: () => void;
+  selectedOptionId?: string; // Pass selected option from product page
 }
 
-const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
+const OrderForm = ({ product, isOpen, onClose, selectedOptionId }: OrderFormProps) => {
   const [formData, setFormData] = useState({
     customerName: '',
     customerEmail: '',
@@ -65,18 +66,30 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
     return () => unsubscribe();
   }, [isOpen]);
 
-  // Set default option when product changes
+  // Set selected option from prop or default when product changes
   useEffect(() => {
     if (product && isOpen) {
       if (product.hasOptions && product.options && product.options.length > 0) {
-        // Find default option or use first option
-        const defaultOption = product.options.find(opt => opt.id === product.defaultOptionId) || product.options[0];
-        setSelectedOption(defaultOption);
+        // Use passed selectedOptionId or find default option
+        if (selectedOptionId) {
+          const option = product.options.find(opt => opt.id === selectedOptionId);
+          if (option) {
+            setSelectedOption(option);
+          } else {
+            // Fallback to default or first option
+            const defaultOption = product.options.find(opt => opt.id === product.defaultOptionId) || product.options[0];
+            setSelectedOption(defaultOption);
+          }
+        } else {
+          // Find default option or use first option
+          const defaultOption = product.options.find(opt => opt.id === product.defaultOptionId) || product.options[0];
+          setSelectedOption(defaultOption);
+        }
       } else {
         setSelectedOption(null);
       }
     }
-  }, [product, isOpen]);
+  }, [product, isOpen, selectedOptionId]);
 
   // Re-validate discount code when selected option changes
   useEffect(() => {
@@ -210,10 +223,10 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
       return false;
     }
 
-    // Check if option is required and selected
+    // Check if option is required and selected (option should be passed from product page)
     if (product.hasOptions && product.options && product.options.length > 0 && !selectedOption) {
-      setError('يرجى اختيار خيار اشتراك');
-      return false;
+      // This should not happen if option was selected on product page, but just in case
+      console.warn('No option selected for product with options');
     }
 
     // Validate shipping address for physical products
@@ -314,7 +327,6 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
 
       // Always show payment modal
       // It will show manual payment option if no gateways are enabled
-      console.log('💳 Showing payment modal for order:', newOrderId);
       setShowPaymentModal(true);
 
     } catch (error) {
@@ -450,120 +462,48 @@ const OrderForm = ({ product, isOpen, onClose }: OrderFormProps) => {
                     </motion.div>
                   )}
 
-                  {/* Product Options */}
-                  {product.hasOptions && product.options && product.options.length > 0 ? (
+                  {/* Display Selected Plan or Price - Options are selected on product page */}
+                  {selectedOption ? (
                     <div className="bg-gradient-to-br from-gray-50 to-blue-50/30 rounded-xl p-4 border border-gray-100">
                       <div className="flex items-center gap-2 mb-3">
                         <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
                           <Clock className="w-3 h-3 text-white" />
                         </div>
                         <div>
-                          <h4 className="text-sm font-semibold text-gray-900">خطط الاشتراك</h4>
-                          <p className="text-xs text-gray-600">اختر الخطة المناسبة</p>
+                          <h4 className="text-sm font-semibold text-gray-900">الخطة المختارة</h4>
+                          <p className="text-xs text-gray-600">تم اختيار الخطة من صفحة المنتج</p>
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 gap-3 mb-3">
-                        {product.options.map((option, index) => (
-                          <motion.div
-                            key={option.id}
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.1 }}
-                            onClick={() => setSelectedOption(option)}
-                            className={`relative p-3 border-2 rounded-lg cursor-pointer transition-all duration-300 ${
-                              selectedOption?.id === option.id
-                                ? 'border-primary-gold bg-gradient-to-br from-yellow-50 to-amber-50 shadow-lg scale-105'
-                                : 'border-gray-200 hover:border-primary-gold/50 hover:shadow-md'
-                            } ${option.isPopular ? 'ring-1 ring-yellow-400/50 shadow-md' : ''}`}
-                          >
-                            {option.isPopular && (
-                              <div className="absolute -top-2 -right-2 bg-gradient-to-r from-yellow-400 to-amber-500 text-black px-2 py-0.5 rounded-full text-xs font-bold flex items-center gap-1 shadow-lg">
-                                <Star className="w-2 h-2" />
-                                شائع
-                              </div>
+                      <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-4 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-xs opacity-90">الخطة</div>
+                            <div className="font-bold text-lg mt-1">{selectedOption.name}</div>
+                            {selectedOption.description && (
+                              <div className="text-xs opacity-80 mt-1">{selectedOption.description}</div>
                             )}
-                            
-                            <div className="text-center">
-                              <div className="font-bold text-gray-900 text-sm">{option.name}</div>
-                              <div className="text-xs text-gray-600 mt-1 flex items-center justify-center gap-1">
-                                <Clock className="w-2 h-2" />
-                                {option.duration} شهر
-                              </div>
-                              <div className="mt-2">
-                                <div className="text-lg font-bold text-primary-gold">{formatPrice(option.price)}</div>
-                                {option.originalPrice && option.originalPrice > option.price && (
-                                  <div className="flex items-center justify-center gap-1 mt-1">
-                                    <span className="text-gray-400 line-through text-sm">{formatPrice(option.originalPrice)}</span>
-                                    {(option.discount && option.discount > 0) && (
-                                      <span className="bg-gradient-to-r from-red-500 to-pink-600 text-white px-1 py-0.5 rounded text-xs font-semibold">
-                                        -{option.discount || 0}%
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                              {option.description && (
-                                <div className="text-xs text-gray-600 mt-2 bg-white/70 p-1.5 rounded">{option.description}</div>
-                              )}
-                            </div>
-
-                            {selectedOption?.id === option.id && (
-                              <motion.div
-                                initial={{ scale: 0 }}
-                                animate={{ scale: 1 }}
-                                className="absolute -top-2 -left-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-lg"
-                              >
-                                <Check className="w-3 h-3 text-white" />
-                              </motion.div>
-                            )}
-                          </motion.div>
-                        ))}
-                      </div>
-                      
-                      {selectedOption && (
-                        <motion.div 
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-3"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
-                                <Check className="w-3 h-3 text-green-600" />
-                              </div>
-                              <div>
-                                <span className="text-sm font-semibold text-green-800">
-                                  {selectedOption.name}
-                                </span>
-                                <p className="text-xs text-green-600">{selectedOption.duration} شهر</p>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              {(() => {
-                                const basePrice = selectedOption.price;
-                                const discount = discountInfo.validated && discountInfo.discountAmount ? discountInfo.discountAmount : 0;
-                                const finalPrice = Math.max(0, basePrice - discount);
-                                return (
-                                  <>
-                                    {discount > 0 && (
-                                      <div className="text-xs text-gray-500 line-through mb-1">
-                                        {formatPrice(basePrice)}
-                                      </div>
-                                    )}
-                                    <div className="text-base font-bold text-green-800">
-                                      {formatPrice(finalPrice)}
-                                    </div>
-                                    <div className="text-xs text-green-600">
-                                      الإجمالي {discount > 0 && `(وفرت ${formatPrice(discount)})`}
-                                    </div>
-                                  </>
-                                );
-                              })()}
+                            <div className="text-sm mt-2 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {selectedOption.duration} شهر
                             </div>
                           </div>
-                        </motion.div>
-                      )}
+                          <div className="text-left">
+                            <div className="text-2xl font-bold">{formatPrice(selectedOption.price)}</div>
+                            {selectedOption.originalPrice && selectedOption.originalPrice > selectedOption.price && (
+                              <div className="text-xs opacity-80 line-through mt-1">
+                                {formatPrice(selectedOption.originalPrice)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {selectedOption.isPopular && (
+                          <div className="mt-3 pt-3 border-t border-white/20 flex items-center gap-2">
+                            <Star className="w-4 h-4 fill-yellow-300 text-yellow-300" />
+                            <span className="text-sm">الأكثر شعبية</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div className="bg-gradient-to-r from-primary-gold/10 to-amber-50 rounded-lg p-4 border border-primary-gold/20">

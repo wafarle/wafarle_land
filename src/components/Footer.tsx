@@ -51,17 +51,33 @@ const Footer = () => {
   ].filter(link => link.href && link.href.trim() !== ''); // Only show links that have values
 
   const quickLinks = [
-    { name: 'الرئيسية', href: '#home' },
-    { name: 'الخدمات', href: '#services' },
-    { name: 'المميزات', href: '#features' },
-    { name: 'تواصل معنا', href: '#contact' },
+    { name: 'الرئيسية', href: '/' },
+    { name: 'المنتجات', href: '/products' },
+    { name: 'العروض والتخفيضات', href: '/deals' },
+    { name: 'سجل التحديثات', href: '/changelog' },
+    { name: 'البحث المتقدم', href: '/search' },
+    { name: 'تتبع الطلب', href: '/track-order' },
   ];
 
-  const serviceLinks = [
-    { name: 'Netflix Premium', href: '#services' },
-    { name: 'Spotify Premium', href: '#services' },
-    { name: 'Shahid VIP', href: '#services' },
-    { name: 'Adobe Creative Cloud', href: '#services' },
+  const legalLinks = [
+    { name: 'الشروط والأحكام', href: '/terms' },
+    { name: 'سياسة الخصوصية', href: '/privacy' },
+    { name: 'سياسة الإرجاع', href: '/returns' },
+    { name: 'الأسئلة الشائعة', href: '/faq' },
+  ];
+
+  const customerLinks = [
+    { name: 'حسابي', href: '/customer/dashboard' },
+    { name: 'طلباتي', href: '/customer/dashboard?tab=orders' },
+    { name: 'السلة', href: '/cart' },
+    { name: 'المفضلة', href: '/wishlist' },
+    { name: 'المقارنة', href: '/compare' },
+  ];
+
+  const infoLinks = [
+    { name: 'من نحن', href: '/about' },
+    { name: 'تواصل معنا', href: '/contact' },
+    { name: 'المدونة', href: '/blog' },
   ];
 
   return (
@@ -70,7 +86,7 @@ const Footer = () => {
       <div className="container py-12 md:py-16" dir="rtl">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
           {/* Company Info */}
-          <div className="lg:col-span-2">
+          <div>
             <Link href="/" className="flex items-center gap-2 md:gap-3 mb-4 md:mb-6">
               <div className="w-8 h-8 md:w-12 md:h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
                 <Zap className="w-4 h-4 md:w-6 md:h-6 text-white" />
@@ -111,7 +127,7 @@ const Footer = () => {
                 <li key={link.name}>
                   <Link 
                     href={link.href}
-                    className="text-gray-300 hover:text-white transition-colors duration-300"
+                    className="text-gray-300 hover:text-white transition-colors duration-300 text-sm"
                   >
                     {link.name}
                   </Link>
@@ -120,15 +136,49 @@ const Footer = () => {
             </ul>
           </div>
 
-          {/* Services */}
+          {/* Customer Links */}
           <div>
-            <h4 className="text-base md:text-lg font-semibold mb-4 md:mb-6">خدماتنا</h4>
+            <h4 className="text-base md:text-lg font-semibold mb-4 md:mb-6">حسابك</h4>
             <ul className="space-y-3">
-              {serviceLinks.map((link) => (
+              {customerLinks.map((link) => (
                 <li key={link.name}>
                   <Link 
                     href={link.href}
-                    className="text-gray-300 hover:text-white transition-colors duration-300"
+                    className="text-gray-300 hover:text-white transition-colors duration-300 text-sm"
+                  >
+                    {link.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Info Links */}
+          <div>
+            <h4 className="text-base md:text-lg font-semibold mb-4 md:mb-6">معلومات</h4>
+            <ul className="space-y-3">
+              {infoLinks.map((link) => (
+                <li key={link.name}>
+                  <Link 
+                    href={link.href}
+                    className="text-gray-300 hover:text-white transition-colors duration-300 text-sm"
+                  >
+                    {link.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Legal Links */}
+          <div>
+            <h4 className="text-base md:text-lg font-semibold mb-4 md:mb-6">روابط قانونية</h4>
+            <ul className="space-y-3">
+              {legalLinks.map((link) => (
+                <li key={link.name}>
+                  <Link 
+                    href={link.href}
+                    className="text-gray-300 hover:text-white transition-colors duration-300 text-sm"
                   >
                     {link.name}
                   </Link>

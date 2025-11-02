@@ -56,7 +56,6 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
       setError(null);
       const loadedSettings = await getWebsiteSettings();
       setSettings(loadedSettings);
-      console.log('✅ Settings loaded:', loadedSettings);
     } catch (err) {
       console.error('❌ Error loading settings:', err);
       setError(err instanceof Error ? err.message : 'Failed to load settings');
@@ -81,8 +80,6 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
         updatedAt: new Date(),
         updatedBy: 'admin'
       }));
-      
-      console.log('✅ Settings updated successfully');
     } catch (err) {
       console.error('❌ Error updating settings:', err);
       setError(err instanceof Error ? err.message : 'Failed to update settings');
@@ -92,10 +89,7 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
 
   // Subscribe to real-time settings changes
   useEffect(() => {
-    console.log('🔄 Setting up settings subscription...');
-    
     const unsubscribe = subscribeToWebsiteSettings((updatedSettings) => {
-      console.log('📥 Settings updated from subscription:', updatedSettings);
       setSettings(updatedSettings);
       setLoading(false);
     });
@@ -104,25 +98,24 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children }) 
     loadSettings();
 
     return () => {
-      console.log('🔌 Unsubscribing from settings...');
       unsubscribe();
     };
   }, []);
 
-  // Apply maintenance mode to document
+  // Apply maintenance mode to document (with safety check)
   useEffect(() => {
-    if (settings.website.maintenanceMode) {
-      document.body.classList.add('maintenance-mode');
-      console.log('🚧 Maintenance mode applied to body');
-    } else {
-      document.body.classList.remove('maintenance-mode');
-      console.log('✅ Maintenance mode removed from body');
+    if (typeof document !== 'undefined') {
+      if (settings.website.maintenanceMode) {
+        document.body.classList.add('maintenance-mode');
+      } else {
+        document.body.classList.remove('maintenance-mode');
+      }
     }
   }, [settings.website.maintenanceMode]);
 
-  // Apply site title
+  // Apply site title (with safety check)
   useEffect(() => {
-    if (settings.website.siteName) {
+    if (typeof document !== 'undefined' && settings.website.siteName) {
       document.title = settings.website.siteName;
     }
   }, [settings.website.siteName]);

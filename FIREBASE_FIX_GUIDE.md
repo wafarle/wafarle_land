@@ -39,11 +39,7 @@ await updateDoc(docRef, {
 
 ### ✅ **3. تسجيل مفصل للتشخيص**
 ```typescript
-console.log('📄 [GET_BLOG_POST] Found document:', {
-  id: doc.id,
-  slug: docData.slug,
-  title: docData.title
-});
+
 ```
 
 ## كيفية التشخيص
@@ -62,11 +58,7 @@ console.log('📄 [GET_BLOG_POST] Found document:', {
 ### 3. **تحقق من البيانات**
 ```typescript
 // في getBlogPost
-console.log('📄 [GET_BLOG_POST] Found document:', {
-  id: doc.id,        // معرف المستند
-  slug: docData.slug, // الـ slug المستخدم في URL
-  title: docData.title
-});
+
 ```
 
 ## الحلول الإضافية
@@ -108,6 +100,8 @@ try {
 2. **الإعجابات**: نفس الشيء ينطبق على الإعجابات
 3. **التسجيل**: جميع العمليات مسجلة بوضوح للتشخيص
 4. **الأمان**: فحص وجود المستند قبل أي عملية تحديث
+
+
 
 
 

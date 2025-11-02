@@ -14,7 +14,6 @@ const VAPID_KEY = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || '';
  */
 export const requestNotificationPermission = async (): Promise<string | null> => {
   if (typeof window === 'undefined' || !('Notification' in window)) {
-    console.log('Browser does not support notifications');
     return null;
   }
 
@@ -23,7 +22,6 @@ export const requestNotificationPermission = async (): Promise<string | null> =>
     const permission = await Notification.requestPermission();
     
     if (permission === 'granted') {
-      console.log('Notification permission granted');
       
       // Get FCM token
       if (!messaging) {
@@ -41,14 +39,12 @@ export const requestNotificationPermission = async (): Promise<string | null> =>
           try {
             // Register service worker at root scope
             serviceWorkerRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-            console.log('✅ Service Worker registered:', serviceWorkerRegistration);
           } catch (error: any) {
             console.error('Service Worker registration error:', error);
             // Don't fail completely, FCM might still work with existing registration
             serviceWorkerRegistration = await navigator.serviceWorker.getRegistration();
           }
         } else {
-          console.log('✅ Service Worker already registered');
         }
       }
 
@@ -70,7 +66,6 @@ export const requestNotificationPermission = async (): Promise<string | null> =>
       const token = await getToken(messaging, tokenOptions);
 
       if (token) {
-        console.log('FCM Token obtained:', token);
         
         // Save token to database or localStorage
         if (typeof window !== 'undefined') {
@@ -84,7 +79,6 @@ export const requestNotificationPermission = async (): Promise<string | null> =>
         return null;
       }
     } else {
-      console.log('Notification permission denied');
       return null;
     }
   } catch (error) {
@@ -104,7 +98,6 @@ export const onForegroundMessage = (callback: (payload: any) => void) => {
 
   try {
     return onMessage(messaging, (payload) => {
-      console.log('Message received in foreground:', payload);
       callback(payload);
       
       // Show browser notification
@@ -135,7 +128,6 @@ export const showBrowserNotification = (
   options: NotificationOptions = {}
 ): void => {
   if (typeof window === 'undefined' || !('Notification' in window)) {
-    console.log('Browser does not support notifications');
     return;
   }
 

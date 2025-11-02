@@ -10,31 +10,15 @@ interface BlogPostPageProps {
 
 export async function generateMetadata({ params }: BlogPostPageProps): Promise<Metadata> {
   const resolvedParams = await params;
-  console.log('🔍 [GENERATE_METADATA] Called with slug:', resolvedParams.slug);
   
   const post = await getBlogPostServer(resolvedParams.slug);
   
   if (!post) {
-    console.log('❌ [GENERATE_METADATA] Post not found');
     return {
       title: 'المقال غير موجود',
       description: 'المقال المطلوب غير موجود أو تم حذفه'
     };
   }
-
-  console.log('📄 [GENERATE_METADATA] Post found:', {
-    id: post.id,
-    title: post.title,
-    seoTitle: post.seoTitle,
-    seoDescription: post.seoDescription,
-    seoKeywords: post.seoKeywords,
-    seoImage: post.seoImage,
-    seoAlt: post.seoAlt,
-    canonicalUrl: post.canonicalUrl,
-    robotsIndex: post.robotsIndex,
-    robotsFollow: post.robotsFollow,
-    seo: post.seo
-  });
 
   const seoTitle = post.seoTitle || post.seo?.title || post.title;
   const seoDescription = post.seoDescription || post.seo?.description || post.excerpt;
@@ -45,46 +29,11 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
   const robotsIndex = post.robotsIndex ?? post.seo?.robotsIndex ?? true;
   const robotsFollow = post.robotsFollow ?? post.seo?.robotsFollow ?? true;
 
-  console.log('🎯 [GENERATE_METADATA] Final SEO values:', {
-    seoTitle,
-    seoDescription,
-    seoImage,
-    seoKeywords,
-    seoAlt,
-    canonicalUrl,
-    robotsIndex,
-    robotsFollow
-  });
-
-  console.log('🔍 [GENERATE_METADATA] Metadata object:', {
-    title: seoTitle,
-    description: seoDescription,
-    keywords: seoKeywords?.join(', '),
-    openGraph: {
-      title: seoTitle,
-      description: seoDescription,
-      url: canonicalUrl,
-      images: seoImage ? [{ url: seoImage, alt: seoAlt }] : []
-    },
-    twitter: {
-      title: seoTitle,
-      description: seoDescription,
-      images: seoImage ? [seoImage] : []
-    },
-    robots: {
-      index: robotsIndex,
-      follow: robotsFollow
-    },
-    alternates: {
-      canonical: canonicalUrl
-    }
-  });
-
   return {
     title: seoTitle,
     description: seoDescription,
     keywords: seoKeywords?.join(', '),
-    authors: [{ name: post.authorName }],
+    authors: [{ name: post.author }],
     openGraph: {
       title: seoTitle,
       description: seoDescription,
@@ -100,7 +49,7 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
       ] : [],
       publishedTime: post.publishedAt?.toISOString(),
       modifiedTime: post.updatedAt.toISOString(),
-      authors: [post.authorName],
+      authors: [post.author],
       siteName: 'وافرلي'
     },
     twitter: {
@@ -117,10 +66,10 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
       canonical: canonicalUrl
     },
     other: {
-      'article:author': post.authorName,
+      'article:author': post.author,
       ...(post.publishedAt && { 'article:published_time': post.publishedAt.toISOString() }),
       'article:modified_time': post.updatedAt.toISOString(),
-      'article:section': post.categoryId,
+      'article:section': post.categories && post.categories.length > 0 ? post.categories[0] : '',
       ...(seoKeywords && { 'article:tag': seoKeywords.join(', ') })
     }
   };

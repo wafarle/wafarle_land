@@ -25,6 +25,7 @@ import {ReturnsTab} from '@/components/admin/ReturnsTab';
 import {EmailNotificationsTab} from '@/components/admin/EmailNotificationsTab';
 import {LoyaltyProgramTab} from '@/components/admin/LoyaltyProgramTab';
 import {EmailServiceTab} from '@/components/admin/EmailServiceTab';
+import {CategoriesTab} from '@/components/admin/CategoriesTab';
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -82,7 +83,11 @@ import {
   CreditCard,
   RotateCcw,
   Mail,
-  Send
+  Send,
+  Tag,
+  Key,
+  Code,
+  ExternalLink
 } from 'lucide-react';
 import { Product } from '@/lib/firebase';
 
@@ -98,17 +103,55 @@ const Dashboard = () => {
   const [ordersCount, setOrdersCount] = useState(0);
   const [customersCount, setCustomersCount] = useState(0);
   const [chatCount, setChatCount] = useState(0);
+  const [isDesktop, setIsDesktop] = useState(false);
   const [notifications, setNotifications] = useState([
     { id: 1, title: 'طلب جديد', message: 'طلب اشتراك Netflix من أحمد محمد', time: 'منذ 5 دقائق', type: 'success' },
     { id: 2, title: 'دفعة مستلمة', message: 'تم استلام دفعة بقيمة $25.99', time: 'منذ 15 دقيقة', type: 'info' },
     { id: 3, title: 'مشكلة تقنية', message: 'مشكلة في تفعيل اشتراك Spotify', time: 'منذ ساعة', type: 'warning' },
   ]);
 
+  // Check window size for sidebar
+  useEffect(() => {
+    const checkDesktop = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
+    
+    // Initial check
+    checkDesktop();
+    
+    // Add resize listener
+    window.addEventListener('resize', checkDesktop);
+    
+    return () => window.removeEventListener('resize', checkDesktop);
+  }, []);
+
   // Check authentication and load data
   useEffect(() => {
+    let authChecked = false;
+
+    // Check authentication first
+    const unsubscribe = onAuthStateChange((user) => {
+      if (!authChecked) {
+        authChecked = true;
+        
+        // In production, redirect if not authenticated or not admin
+        if (process.env.NODE_ENV === 'production') {
+          if (!user || !isAdmin(user)) {
+            router.push('/admin');
+            return;
+          }
+        } else {
+          // In development, show warning but allow access for testing
+          if (!user || !isAdmin(user)) {
+            // Development mode - allow access for testing Firebase rules
+            // This is expected when using test mode rules
+          }
+        }
+      }
+    });
+
     const loadData = async () => {
       try {
-        // Try to load products first (works with test mode rules)
         const productsData = await getProducts();
         setProducts(productsData);
         setLoading(false);
@@ -148,15 +191,10 @@ const Dashboard = () => {
       }
     };
 
-    // Check authentication first
-    const unsubscribe = onAuthStateChange((user) => {
-      if (!user || !isAdmin(user)) {
-        // For development, allow access without auth when using test rules
-        console.log('No authenticated admin user, but proceeding with test mode');
-      }
-    });
-
-    loadData();
+    // Small delay to allow auth check first
+    setTimeout(() => {
+      loadData();
+    }, 100);
 
     return () => unsubscribe();
   }, [router]);
@@ -227,6 +265,7 @@ const Dashboard = () => {
     { id: 'emailNotifications', label: 'إشعارات البريد', icon: Mail, color: 'from-purple-500 to-pink-500' },
     { id: 'emailService', label: 'خدمة البريد', icon: Send, color: 'from-cyan-500 to-blue-500' },
     { id: 'loyalty', label: 'نقاط الولاء', icon: Crown, color: 'from-yellow-500 to-orange-500' },
+    { id: 'categories', label: 'التصنيفات', icon: Tag, color: 'from-violet-500 to-purple-500' },
     { id: 'settings', label: 'الإعدادات', icon: Settings, color: 'from-gray-500 to-slate-500' },
     { id: 'blog', label: 'المدونه', icon: Settings, color: 'from-gray-500 to-slate-500' }
   ];
@@ -353,6 +392,14 @@ const Dashboard = () => {
               </button>
               
               <a
+                href="/admin/license"
+                className="flex items-center gap-2 text-white/70 hover:text-white hover:bg-gradient-to-r hover:from-green-600 hover:to-emerald-600 px-4 py-2 rounded-xl transition-all duration-300 border border-white/20"
+              >
+                <Shield className="w-4 h-4" />
+                <span>🔐 ترخيص المتجر</span>
+              </a>
+              
+              <a
                 href="/"
                 className="flex items-center gap-2 text-white/70 hover:text-white hover:bg-white/10 px-4 py-2 rounded-xl transition-all duration-300"
               >
@@ -375,7 +422,7 @@ const Dashboard = () => {
       <div className="flex min-h-[calc(100vh-theme(spacing.20))] overflow-hidden">
         {/* Sidebar */}
         <AnimatePresence>
-          {(sidebarOpen || window.innerWidth >= 1024) && (
+          {(sidebarOpen || isDesktop) && (
             <motion.aside
               initial={{ x: -300, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
@@ -518,6 +565,7 @@ const Dashboard = () => {
               {activeTab === 'emailNotifications' && <EmailNotificationsTab />}
               {activeTab === 'emailService' && <EmailServiceTab />}
               {activeTab === 'loyalty' && <LoyaltyProgramTab />}
+              {activeTab === 'categories' && <CategoriesTab />}
               {activeTab === 'settings' && <SettingsTab />}
               {activeTab === 'blog' && <BlogTab />}
             </div>

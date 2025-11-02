@@ -44,20 +44,12 @@ export default function BlogPostClient({ params }: BlogPostClientProps) {
   const loadPost = async () => {
     setLoading(true);
     try {
-      console.log('📖 [LOAD_POST] Loading post with slug:', resolvedParams.slug);
       const postData = await getBlogPost(resolvedParams.slug);
       
       if (!postData) {
-        console.log('❌ [LOAD_POST] Post not found');
         notFound();
         return;
       }
-
-      console.log('✅ [LOAD_POST] Post loaded:', {
-        id: postData.id,
-        title: postData.title,
-        slug: postData.slug
-      });
 
       setPost(postData);
       setLikesCount((postData as any).likesCount || 0);
@@ -68,7 +60,6 @@ export default function BlogPostClient({ params }: BlogPostClientProps) {
       
       // Increment view count
       try {
-        console.log('👁️ [LOAD_POST] Incrementing views for post:', postData.id);
         await incrementBlogPostViews(postData.id);
       } catch (error) {
         console.error('❌ [LOAD_POST] Failed to increment views:', error);
@@ -77,10 +68,10 @@ export default function BlogPostClient({ params }: BlogPostClientProps) {
       // Load category and related posts
       const [categories, related] = await Promise.all([
         getBlogCategories(),
-        getBlogPostsByCategory(postData.categoryId, 3)
+        postData.categories && postData.categories.length > 0 ? getBlogPostsByCategory(postData.categories[0], 3) : Promise.resolve([])
       ]);
 
-      const postCategory = categories.find(cat => cat.id === postData.categoryId);
+      const postCategory = postData.categories && postData.categories.length > 0 ? categories.find(cat => cat.id === postData.categories[0]) : undefined;
       setCategory(postCategory || null);
       
       // Filter out current post from related posts
@@ -128,7 +119,6 @@ export default function BlogPostClient({ params }: BlogPostClientProps) {
           url: window.location.href
         });
       } catch (error) {
-        console.log('Error sharing:', error);
       }
     } else {
       // Fallback: copy to clipboard
@@ -166,7 +156,7 @@ export default function BlogPostClient({ params }: BlogPostClientProps) {
     "image": post.seoImage || post.seo?.image || post.featuredImage,
     "author": {
       "@type": "Person",
-      "name": post.authorName
+      "name": post.author
     },
     "publisher": {
       "@type": "Organization",
@@ -247,11 +237,11 @@ export default function BlogPostClient({ params }: BlogPostClientProps) {
               </div>
               <div className="flex items-center gap-2">
                 <Eye className="w-4 h-4" />
-                <span>{post.viewCount} مشاهدة</span>
+                <span>{post.views} مشاهدة</span>
               </div>
               <div className="flex items-center gap-2">
                 <span>بواسطة</span>
-                <span className="text-blue-400 font-medium">{post.authorName}</span>
+                <span className="text-blue-400 font-medium">{post.author}</span>
               </div>
             </div>
 

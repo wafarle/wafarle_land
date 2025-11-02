@@ -9,7 +9,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { paymentIntentId, amount, reason } = body;
     
-    console.log('💸 Stripe Refund (simulated):', { paymentIntentId, amount, reason });
 
     return NextResponse.json({
       id: `re_sim_${Date.now()}`,
@@ -24,6 +23,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
 
 
 

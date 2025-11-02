@@ -7,6 +7,14 @@ import MaintenanceWrapper from "@/components/MaintenanceWrapper";
 import AnalyticsProvider from "@/components/AnalyticsProvider";
 import SEOHead from "@/components/SEOHead";
 import { NotificationManager } from "@/components/NotificationManager";
+import PWAProvider from "@/components/PWAProvider";
+import UpdateChecker from "@/components/UpdateChecker";
+import CustomizationProvider from "@/components/CustomizationProvider";
+import { CartProvider } from "@/contexts/CartContext";
+import { WishlistProvider } from "@/contexts/WishlistContext";
+import { CompareProvider } from "@/contexts/CompareContext";
+import { CustomerNotificationProvider } from "@/contexts/NotificationContext";
+import StoreLicenseProtection from "@/components/StoreLicenseProtection";
 
 const cairo = Cairo({
   subsets: ["latin", "arabic"],
@@ -29,12 +37,26 @@ export default function RootLayout({
       <body className={`${cairo.variable} font-cairo antialiased`}>
         <SettingsProvider>
           <CurrencyProvider>
-            <SEOHead />
-            <MaintenanceWrapper>
-              {children}
-            </MaintenanceWrapper>
-            <AnalyticsProvider />
-            <NotificationManager />
+            <CustomizationProvider>
+              <CartProvider>
+                <WishlistProvider>
+                  <CompareProvider>
+                    <CustomerNotificationProvider>
+                      <SEOHead />
+                      <StoreLicenseProtection>
+                        <MaintenanceWrapper>
+                          {children}
+                        </MaintenanceWrapper>
+                      </StoreLicenseProtection>
+                      <PWAProvider />
+                      <AnalyticsProvider />
+                      <NotificationManager />
+                      <UpdateChecker />
+                    </CustomerNotificationProvider>
+                  </CompareProvider>
+                </WishlistProvider>
+              </CartProvider>
+            </CustomizationProvider>
           </CurrencyProvider>
         </SettingsProvider>
       </body>

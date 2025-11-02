@@ -13,7 +13,6 @@ export async function POST(request: NextRequest) {
     // const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
     // const paymentIntent = await stripe.paymentIntents.create({ amount, currency, metadata });
     
-    console.log('💳 Stripe Payment Intent Created (simulated):', { amount, currency, metadata });
 
     const clientSecret = `pi_sim_${Date.now()}_secret_${Math.random().toString(36).substr(2, 9)}`;
     
@@ -33,6 +32,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
 
 
 

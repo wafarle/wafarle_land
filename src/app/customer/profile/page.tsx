@@ -92,7 +92,7 @@ export default function CustomerProfile() {
     try {
       const allOrders = await getOrders();
       const customerOrders = allOrders.filter(order => 
-        order.customerEmail.toLowerCase() === email.toLowerCase()
+        order.email?.toLowerCase() === email.toLowerCase()
       );
       setOrders(customerOrders);
     } catch (error) {
@@ -104,7 +104,7 @@ export default function CustomerProfile() {
   const getCustomerStats = () => {
     const totalOrders = orders.length;
     const completedOrders = orders.filter(order => order.status === 'completed').length;
-    const totalSpent = orders.filter(order => order.paymentStatus === 'paid').reduce((sum, order) => sum + order.totalAmount, 0);
+    const totalSpent = orders.filter(order => order.paymentStatus === 'paid').reduce((sum, order) => sum + order.totalPrice, 0);
     const pendingOrders = orders.filter(order => order.status === 'pending').length;
     
     return { totalOrders, completedOrders, totalSpent, pendingOrders };

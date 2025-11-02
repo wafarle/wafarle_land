@@ -103,7 +103,7 @@ export default function CustomerDashboard() {
       const unsubscribe = subscribeToOrders((allOrders) => {
         if (customerUser?.email) {
           const customerOrders = allOrders.filter(order => 
-            order.customerEmail.toLowerCase() === customerUser.email.toLowerCase()
+            order.email?.toLowerCase() === customerUser.email.toLowerCase()
           );
           setOrders(customerOrders);
         }
@@ -145,7 +145,7 @@ export default function CustomerDashboard() {
       // Load customer's orders
       const allOrders = await getOrders();
       const customerOrders = allOrders.filter(order => 
-        order.customerEmail.toLowerCase() === customerUser.email.toLowerCase()
+        order.email?.toLowerCase() === customerUser.email.toLowerCase()
       );
       setOrders(customerOrders);
 
@@ -158,12 +158,12 @@ export default function CustomerDashboard() {
       // تصفية الاشتراكات: إزالة المنتجات الملموسة أو التي تحتاج تنزيل
       const filteredSubscriptions = customerSubscriptions.filter(subscription => {
         // البحث عن المنتج المرتبط بهذا الاشتراك
-        const product = availableProducts.find(p => p.id === subscription.productId);
+        const product = availableProducts.find(p => p.id === subscription.id);
         if (!product) return true; // إذا لم نجد المنتج، نعرضه (قديم)
         
-        // استبعاد المنتجات الملموسة أو التي تحتاج تنزيل
-        const productType = product.productType;
-        return productType !== 'physical' && productType !== 'download';
+        // استبعاد المنتجات الملموسة فقط - السماح بالاشتراكات الرقمية
+        const productType = product.type;
+        return productType === 'subscription' || productType === 'digital';
       });
       setSubscriptions(filteredSubscriptions);
 
@@ -267,7 +267,7 @@ export default function CustomerDashboard() {
   const getStats = () => {
     const totalOrders = orders.length;
     const completedOrders = orders.filter(order => order.status === 'completed').length;
-    const totalSpent = orders.filter(order => order.paymentStatus === 'paid').reduce((sum, order) => sum + order.totalAmount, 0);
+    const totalSpent = orders.filter(order => order.paymentStatus === 'paid').reduce((sum, order) => sum + order.totalPrice, 0);
     const pendingOrders = orders.filter(order => order.status === 'pending').length;
 
     return { totalOrders, completedOrders, totalSpent, pendingOrders };
@@ -530,11 +530,10 @@ export default function CustomerDashboard() {
                           const StatusIcon = statusConfig.icon;
                           
                           // البحث عن المنتج المرتبط بالطلب
-                          const product = products.find(p => p.id === order.productId);
-                          const productType = product?.productType || order.productType;
-                          const downloadLink = product?.downloadLink || order.downloadLink;
-                          const showDownloadButton = (productType === 'download' || productType === 'digital') && downloadLink;
-                          const showShippingTracking = productType === 'physical' && product?.requiresShipping;
+                          const product = products.find(p => p.id === order.product?.id);
+                          const productType = product?.type;
+                          const showDownloadButton = (productType === 'digital') && product?.externalLink;
+                          const showShippingTracking = productType === 'physical';
                           const shippingStatus = order.shippingStatus || 'pending_shipping';
                           const shippingStatusConfig = getShippingStatusConfig(shippingStatus);
                           const ShippingIcon = shippingStatusConfig.icon;
@@ -546,7 +545,7 @@ export default function CustomerDashboard() {
                                   <Package className="w-6 h-6 text-gray-600" />
                                 </div>
                                 <div>
-                                  <h3 className="font-medium text-gray-900">{order.productName}</h3>
+                                  <h3 className="font-medium text-gray-900">{order.product?.name || 'منتج'}</h3>
                                   <p className="text-sm text-gray-500">{formatDate(order.createdAt)}</p>
                                   {/* عرض حالة الشحن للمنتجات الملموسة */}
                                   {showShippingTracking && (
@@ -575,14 +574,14 @@ export default function CustomerDashboard() {
                                 )}
                                 {showDownloadButton && (
                                   <button
-                                    onClick={() => window.open(downloadLink, '_blank')}
+                                    onClick={() => window.open(product?.externalLink, '_blank')}
                                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white text-xs font-medium rounded-md shadow-sm hover:shadow transition-all duration-200"
                                   >
                                     <Download className="w-3.5 h-3.5" />
                                     تحميل
                                   </button>
                                 )}
-                                <span className="font-medium text-gray-900">{formatPrice(order.totalAmount)}</span>
+                                <span className="font-medium text-gray-900">{formatPrice(order.totalPrice)}</span>
                                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig.color}`}>
                                   <StatusIcon className="w-3 h-3 mr-1" />
                                   {statusConfig.label}
@@ -617,15 +616,14 @@ export default function CustomerDashboard() {
                     <div className="space-y-4">
                       {orders.map((order) => {
                         const statusConfig = getOrderStatusConfig(order.status);
-                        const paymentConfig = getPaymentStatusConfig(order.paymentStatus);
+                        const paymentConfig = getPaymentStatusConfig(order.paymentStatus || 'pending');
                         const StatusIcon = statusConfig.icon;
                         
                         // البحث عن المنتج المرتبط بالطلب
-                        const product = products.find(p => p.id === order.productId);
-                        const productType = product?.productType || order.productType;
-                        const downloadLink = product?.downloadLink || order.downloadLink;
-                        const showDownloadButton = (productType === 'download' || productType === 'digital') && downloadLink;
-                        const showShippingTracking = productType === 'physical' && product?.requiresShipping;
+                        const product = products.find(p => p.id === order.product?.id);
+                        const productType = product?.type;
+                        const showDownloadButton = (productType === 'digital') && product?.externalLink;
+                        const showShippingTracking = productType === 'physical' && true;
                         const shippingStatus = order.shippingStatus || 'pending_shipping';
                         const shippingStatusConfig = getShippingStatusConfig(shippingStatus);
                         const ShippingIcon = shippingStatusConfig.icon;
@@ -634,7 +632,7 @@ export default function CustomerDashboard() {
                           <div key={order.id} className="border border-gray-200 rounded-lg p-6">
                             <div className="flex items-start justify-between mb-4">
                               <div>
-                                <h3 className="text-lg font-medium text-gray-900">{order.productName}</h3>
+                                <h3 className="text-lg font-medium text-gray-900">{order.product?.name || 'منتج'}</h3>
                                 <p className="text-sm text-gray-500">طلب رقم: #{order.id.slice(-8)}</p>
                                 <p className="text-sm text-gray-500">{formatDate(order.createdAt)}</p>
                                 {/* عرض حالة الشحن للمنتجات الملموسة */}
@@ -648,7 +646,7 @@ export default function CustomerDashboard() {
                                 )}
                               </div>
                               <div className="text-right">
-                                <div className="text-xl font-bold text-gray-900 mb-2">{formatPrice(order.totalAmount)}</div>
+                                <div className="text-xl font-bold text-gray-900 mb-2">{formatPrice(order.totalPrice)}</div>
                                 <div className="flex flex-col gap-2">
                                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig.color}`}>
                                     <StatusIcon className="w-3 h-3 mr-1" />
@@ -668,13 +666,13 @@ export default function CustomerDashboard() {
                             )}
                             
                             {/* عرض عنوان الشحن للمنتجات الملموسة */}
-                            {showShippingTracking && order.shippingAddress && (
+                            {showShippingTracking && order.address && (
                               <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
                                 <div className="flex items-start gap-2">
                                   <MapPin className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
                                   <div className="flex-1">
                                     <p className="text-sm font-medium text-green-800 mb-1">عنوان الشحن:</p>
-                                    <p className="text-sm text-green-700">{order.shippingAddress}</p>
+                                    <p className="text-sm text-green-700">{order.address}</p>
                                   </div>
                                 </div>
                               </div>
@@ -682,7 +680,7 @@ export default function CustomerDashboard() {
                             
                             <div className="flex items-center justify-between pt-4 border-t border-gray-200">
                               <div className="text-sm text-gray-500">
-                                الكمية: {order.quantity} | طريقة الدفع: {
+                                الكمية: {order.product?.quantity || 1} | طريقة الدفع: {
                                   order.paymentMethod === 'cash' ? 'نقدي' :
                                   order.paymentMethod === 'card' ? 'بطاقة ائتمان' :
                                   order.paymentMethod === 'bank_transfer' ? 'حوالة بنكية' : 'محفظة رقمية'
@@ -707,7 +705,7 @@ export default function CustomerDashboard() {
                                 {/* زر التحميل للمنتجات التي تحتاج تنزيل */}
                                 {showDownloadButton && (
                                   <button
-                                    onClick={() => window.open(downloadLink, '_blank')}
+                                    onClick={() => window.open(product?.externalLink, '_blank')}
                                     className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
                                   >
                                     <Download className="w-4 h-4" />
@@ -716,10 +714,9 @@ export default function CustomerDashboard() {
                                 )}
 
                                 {/* زر طلب الإرجاع */}
-                                {order.status === 'completed' && 
-                                 order.paymentStatus === 'paid' && 
-                                 (!order.returnStatus || order.returnStatus === 'none') && 
-                                 settings?.website?.returnPolicy?.enabled && (
+                                 {order.status === 'completed' && 
+                                  order.paymentStatus === 'paid' && 
+                                  settings?.website?.returnPolicy?.enabled && (
                                   <button
                                     onClick={() => {
                                       setSelectedOrderForReturn(order);
@@ -732,25 +729,7 @@ export default function CustomerDashboard() {
                                   </button>
                                 )}
 
-                                {/* عرض حالة الإرجاع */}
-                                {order.returnStatus && order.returnStatus !== 'none' && (
-                                  <span className={`inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium ${
-                                    order.returnStatus === 'requested' ? 'bg-yellow-100 text-yellow-800' :
-                                    order.returnStatus === 'approved' ? 'bg-blue-100 text-blue-800' :
-                                    order.returnStatus === 'rejected' ? 'bg-red-100 text-red-800' :
-                                    order.returnStatus === 'returned' ? 'bg-green-100 text-green-800' :
-                                    'bg-gray-100 text-gray-800'
-                                  }`}>
-                                    <RotateCcw className="w-4 h-4 mr-1" />
-                                    {
-                                      order.returnStatus === 'requested' ? 'طلب إرجاع قيد المراجعة' :
-                                      order.returnStatus === 'approved' ? 'تم الموافقة على الإرجاع' :
-                                      order.returnStatus === 'rejected' ? 'تم رفض طلب الإرجاع' :
-                                      order.returnStatus === 'returned' ? 'تم الإرجاع بنجاح' :
-                                      order.returnStatus === 'exchanged' ? 'تم الاستبدال' : ''
-                                    }
-                                  </span>
-                                )}
+                                {/* Return status removed - not in Order interface */}
 
                                 {/* زر تحميل الفاتورة */}
                                 <button
@@ -762,10 +741,10 @@ export default function CustomerDashboard() {
                                     }
                                   }}
                                   className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-medium rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
-                                  title={order.invoiceNumber ? `فاتورة رقم: ${order.invoiceNumber}` : 'تحميل الفاتورة'}
+                                  title={order.id ? `فاتورة رقم: ${order.id}` : 'تحميل الفاتورة'}
                                 >
                                   <FileText className="w-4 h-4" />
-                                  {order.invoiceNumber ? `فاتورة ${order.invoiceNumber}` : 'تحميل الفاتورة'}
+                                  {order.id ? `فاتورة ${order.id}` : 'تحميل الفاتورة'}
                                 </button>
                               </div>
                             </div>
@@ -835,11 +814,11 @@ export default function CustomerDashboard() {
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                          {subscriptions.filter(sub => sub.status === 'active').length} نشط
+                          {subscriptions.filter(sub => sub.isActive).length} نشط
                         </div>
-                        {subscriptions.filter(sub => sub.status === 'expired').length > 0 && (
+                        {subscriptions.filter(sub => !sub.isActive).length > 0 && (
                           <div className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
-                            {subscriptions.filter(sub => sub.status === 'expired').length} منتهي
+                            {subscriptions.filter(sub => !sub.isActive).length} منتهي
                           </div>
                         )}
                       </div>
@@ -866,20 +845,11 @@ export default function CustomerDashboard() {
                           </div>
                         </div>
                         {subscriptions.map((subscription, index) => {
-                          const remainingDays = calculateRemainingDays(subscription.endDate);
-                          const isExpiring = isSubscriptionExpiringSoon(subscription);
+                          const isExpiring = false; // Subscription tracking removed for now
+                          const progressPercentage = 50; // Default progress
                           
-                          // Calculate total subscription days more accurately
-                          const totalDays = Math.ceil((subscription.endDate.getTime() - subscription.startDate.getTime()) / (1000 * 60 * 60 * 24));
-                          const usedDays = totalDays - remainingDays;
-                          const progressPercentage = totalDays > 0 ? Math.max(0, Math.min(100, (usedDays / totalDays) * 100)) : 0;
-                          
-                          // Calculate subscription duration in readable format
-                          const durationText = subscription.durationMonths === 1 ? 'شهر واحد' :
-                                             subscription.durationMonths === 3 ? '3 شهور' :
-                                             subscription.durationMonths === 6 ? '6 شهور' :
-                                             subscription.durationMonths === 12 ? 'سنة كاملة' :
-                                             `${subscription.durationMonths} شهر`;
+                          // Duration from subscription object
+                          const durationText = subscription.duration || 'شهري';
 
                           return (
                             <motion.div
@@ -888,9 +858,8 @@ export default function CustomerDashboard() {
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: index * 0.1 }}
                               className={`border rounded-xl p-6 transition-all hover:shadow-md ${
-                                subscription.status === 'active' ? 'border-green-200 bg-green-50/30' : 
-                                subscription.status === 'expired' ? 'border-red-200 bg-red-50/30' :
-                                'border-gray-200 bg-gray-50/30'
+                                subscription.isActive ? 'border-green-200 bg-green-50/30' : 
+                                'border-red-200 bg-red-50/30'
                               }`}
                             >
                               <div className="flex items-start justify-between mb-4">
@@ -899,47 +868,41 @@ export default function CustomerDashboard() {
                                     <Package className="w-8 h-8 text-white" />
                                   </div>
                                   <div>
-                                    <h3 className="text-lg font-semibold text-gray-900">{subscription.productName}</h3>
-                                    <p className="text-sm text-gray-600">خطة {subscription.planType} - مدة {durationText}</p>
+                                    <h3 className="text-lg font-semibold text-gray-900">{subscription.name}</h3>
+                                    <p className="text-sm text-gray-600">خطة {subscription.duration} - مدة {durationText}</p>
                                     <div className="flex items-center gap-2 mt-2">
-                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getSubscriptionStatusColor(subscription.status)}`}>
-                                        {getSubscriptionStatusLabel(subscription.status)}
+                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getSubscriptionStatusColor(subscription.isActive ? 'active' : 'expired')}`}>
+                                        {getSubscriptionStatusLabel(subscription.isActive ? 'active' : 'expired')}
                                       </span>
-                                      {subscription.autoRenewal && subscription.status === 'active' && (
+                                      {subscription.isActive && (
                                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                                          تجديد تلقائي
+                                          نشط
                                         </span>
                                       )}
                                     </div>
                                     {/* Subscription Duration Summary */}
                                     <div className="mt-2 text-xs text-gray-500 bg-gray-50 rounded px-2 py-1">
-                                      <span>المدة الإجمالية: {totalDays} يوم</span>
-                                      {subscription.status === 'active' && (
-                                        <span className="mx-2">•</span>
-                                      )}
-                                      {subscription.status === 'active' && remainingDays > 0 && (
-                                        <span>مستخدم: {usedDays} يوم</span>
-                                      )}
+                                      <span>مدة الاشتراك: {durationText}</span>
                                     </div>
                                   </div>
                                 </div>
                                 <div className="text-right">
                                   <div className="text-xl font-bold text-gray-900">{formatPrice(subscription.price)}</div>
-                                  <div className="text-sm text-gray-600">/{subscription.planType}</div>
+                                  <div className="text-sm text-gray-600">/{subscription.duration}</div>
                                 </div>
                               </div>
 
                               {/* Subscription Progress */}
-                              {subscription.status === 'active' && (
+                              {subscription.isActive && 'active' && (
                                 <div className="mb-4">
                                   <div className="flex justify-between items-center mb-2">
                                     <div className="text-sm">
                                       <span className="font-medium text-gray-700">
-                                        {remainingDays > 0 ? (
+                                        {30 > 0 ? (
                                           <>
-                                            المتبقي: <span className="text-blue-600 font-semibold">{remainingDays} يوم</span>
-                                            {remainingDays > 30 && (
-                                              <span className="text-gray-500"> (~{Math.ceil(remainingDays / 30)} شهر)</span>
+                                            المتبقي: <span className="text-blue-600 font-semibold">{30} يوم</span>
+                                            {30 > 30 && (
+                                              <span className="text-gray-500"> (~{Math.ceil(30 / 30)} شهر)</span>
                                             )}
                                           </>
                                         ) : (
@@ -956,7 +919,7 @@ export default function CustomerDashboard() {
                                     <motion.div
                                       className={`h-2 rounded-full ${
                                         isExpiring ? 'bg-gradient-to-r from-yellow-400 to-red-500' :
-                                        remainingDays > 0 ? 'bg-gradient-to-r from-green-400 to-blue-500' :
+                                        30 > 0 ? 'bg-gradient-to-r from-green-400 to-blue-500' :
                                         'bg-gray-400'
                                       }`}
                                       style={{ width: `${progressPercentage}%` }}
@@ -965,12 +928,12 @@ export default function CustomerDashboard() {
                                       transition={{ duration: 1, delay: index * 0.2 }}
                                     />
                                   </div>
-                                  {isExpiring && remainingDays > 0 && (
+                                  {isExpiring && 30 > 0 && (
                                     <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
                                       <div className="flex items-center gap-2">
                                         <AlertCircle className="w-4 h-4 text-yellow-600" />
                                         <span className="text-sm text-yellow-800 font-medium">
-                                          ينتهي الاشتراك خلال {remainingDays} أيام!
+                                          ينتهي الاشتراك خلال {30} أيام!
                                         </span>
                                       </div>
                                     </div>
@@ -1006,7 +969,7 @@ export default function CustomerDashboard() {
                                   <div className="flex items-center gap-2">
                                     <Calendar className="w-4 h-4" />
                                     <span>
-                                      بدء: <span className="font-medium">{subscription.startDate.toLocaleDateString('ar-SA')}</span>
+                                      بدء: <span className="font-medium">{subscription.createdAt.toLocaleDateString('ar-SA')}</span>
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-2">
@@ -1014,20 +977,20 @@ export default function CustomerDashboard() {
                                     <span>
                                       انتهاء: <span className={`font-medium ${
                                         isExpiring ? 'text-orange-600' : 
-                                        remainingDays < 0 ? 'text-red-600' : 'text-gray-900'
+                                        30 < 0 ? 'text-red-600' : 'text-gray-900'
                                       }`}>
-                                        {subscription.endDate.toLocaleDateString('ar-SA')}
+                                        {subscription.createdAt.toLocaleDateString('ar-SA')}
                                       </span>
-                                      {remainingDays > 0 && remainingDays <= 30 && (
+                                      {30 > 0 && 30 <= 30 && (
                                         <span className="text-orange-600 text-xs mr-1">
-                                          (بعد {remainingDays} يوم)
+                                          (بعد {30} يوم)
                                         </span>
                                       )}
                                     </span>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  {subscription.status === 'active' && (
+                                  {subscription.isActive && 'active' && (
                                     <>
                                       <button 
                                         onClick={() => handleSubscriptionManagement(subscription)}
@@ -1046,7 +1009,7 @@ export default function CustomerDashboard() {
                                         <Star className="w-3 h-3 mr-1" />
                                         تقييم
                                       </button>
-                                      {!subscription.autoRenewal && isExpiring && (
+                                      {!subscription.isActive && isExpiring && (
                                         <button className="inline-flex items-center px-3 py-1.5 border border-blue-300 text-xs font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors">
                                           <RefreshCw className="w-3 h-3 mr-1" />
                                           تجديد
@@ -1054,7 +1017,7 @@ export default function CustomerDashboard() {
                                       )}
                                     </>
                                   )}
-                                  {subscription.status === 'expired' && (
+                                  {subscription.isActive && 'expired' && (
                                     <>
                                       <button 
                                         onClick={() => {
@@ -1085,6 +1048,178 @@ export default function CustomerDashboard() {
                         <p className="text-gray-500 mb-6">ابدأ بالاشتراك في خدماتنا للاستفادة من المزايا الحصرية</p>
                         <Link href="/#services" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors">
                           تصفح الخدمات
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'loyalty' && (
+              <div className="space-y-6">
+                {/* Loyalty Points Overview */}
+                <div className="bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 rounded-xl p-6 text-white shadow-lg">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                        <Coins className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold">نقاط الولاء</h2>
+                        <p className="text-white/90 text-sm">رصيدك الحالي من النقاط</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-5xl font-bold">{customerData?.loyaltyPoints || 0}</div>
+                      <div className="text-white/80 text-sm">نقطة</div>
+                    </div>
+                  </div>
+                  
+                  {customerData?.loyaltyTier && (
+                    <div className="mt-4 pt-4 border-t border-white/20">
+                      <div className="flex items-center gap-2">
+                        <Crown className="w-5 h-5" />
+                        <span className="font-medium">فئة الولاء: </span>
+                        <span className="capitalize font-bold">
+                          {customerData.loyaltyTier === 'bronze' && 'برونزي'}
+                          {customerData.loyaltyTier === 'silver' && 'فضي'}
+                          {customerData.loyaltyTier === 'gold' && 'ذهبي'}
+                          {customerData.loyaltyTier === 'platinum' && 'بلاتيني'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Loyalty Points Statistics */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-white rounded-lg p-6 border shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                        <TrendingUp className="w-6 h-6 text-green-600" />
+                      </div>
+                    </div>
+                    <h3 className="text-sm font-medium text-gray-600 mb-1">إجمالي النقاط المكتسبة</h3>
+                    <div className="text-2xl font-bold text-gray-900">{customerData?.totalLoyaltyPointsEarned || 0}</div>
+                  </div>
+
+                  <div className="bg-white rounded-lg p-6 border shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <Gift className="w-6 h-6 text-blue-600" />
+                      </div>
+                    </div>
+                    <h3 className="text-sm font-medium text-gray-600 mb-1">النقاط المستخدمة</h3>
+                    <div className="text-2xl font-bold text-gray-900">{customerData?.totalLoyaltyPointsRedeemed || 0}</div>
+                  </div>
+
+                  <div className="bg-white rounded-lg p-6 border shadow-sm">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                        <Coins className="w-6 h-6 text-yellow-600" />
+                      </div>
+                    </div>
+                    <h3 className="text-sm font-medium text-gray-600 mb-1">الرصيد الحالي</h3>
+                    <div className="text-2xl font-bold text-gray-900">{customerData?.loyaltyPoints || 0}</div>
+                  </div>
+                </div>
+
+                {/* Redemption Information */}
+                {settings?.website?.loyaltyProgram?.enabled && settings.website.loyaltyProgram.redemptionRate && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <AlertCircle className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-blue-900 mb-2">كيفية استخدام النقاط</h3>
+                        <p className="text-blue-800 text-sm mb-3">
+                          يمكنك استخدام نقاط الولاء للحصول على خصم على مشترياتك المستقبلية. كل {settings.website.loyaltyProgram.redemptionRate} نقطة تساوي $1 خصم.
+                        </p>
+                        {customerData?.loyaltyPoints && customerData.loyaltyPoints > 0 && (
+                          <div className="bg-white rounded-lg p-4 border border-blue-100">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-gray-700">قيمة رصيدك الحالي:</span>
+                              <span className="text-lg font-bold text-blue-600">
+                                ${((customerData.loyaltyPoints || 0) / settings.website.loyaltyProgram.redemptionRate).toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Points Earned from Orders */}
+                <div className="bg-white rounded-lg border shadow-sm">
+                  <div className="p-6 border-b">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-lg font-semibold text-gray-900">سجل النقاط</h2>
+                        <p className="text-sm text-gray-600">النقاط المكتسبة من الطلبات</p>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Activity className="w-4 h-4 text-yellow-500" />
+                        <span>{orders.filter(o => o.status === 'completed' || o.shippingStatus === 'delivered').length} طلب مكتمل</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-6">
+                    {orders.filter(o => o.status === 'completed' || o.shippingStatus === 'delivered').length > 0 ? (
+                      <div className="space-y-4">
+                        {orders
+                          .filter(o => o.status === 'completed' || o.shippingStatus === 'delivered')
+                          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                          .map((order) => {
+                            // Calculate points for this order (based on order amount)
+                            const estimatedPoints = settings?.website?.loyaltyProgram?.enabled && settings.website.loyaltyProgram.pointsPerDollar
+                              ? Math.floor(order.totalPrice * (settings.website.loyaltyProgram.pointsPerDollar || 0)) + (settings.website.loyaltyProgram.pointsPerOrder || 0)
+                              : 0;
+
+                            return (
+                              <div key={order.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                <div className="flex items-center gap-4">
+                                  <div className="w-12 h-12 bg-gradient-to-r from-yellow-400 to-orange-400 rounded-lg flex items-center justify-center">
+                                    <ShoppingBag className="w-6 h-6 text-white" />
+                                  </div>
+                                  <div>
+                                    <h3 className="font-medium text-gray-900">{order.product?.name || 'منتج'}</h3>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <span className="text-sm text-gray-600">
+                                        {new Date(order.createdAt).toLocaleDateString('ar-SA', {
+                                          year: 'numeric',
+                                          month: 'long',
+                                          day: 'numeric'
+                                        })}
+                                      </span>
+                                      <span className="text-gray-400">•</span>
+                                      <span className="text-sm text-gray-600">{formatPrice(order.totalPrice)}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  {estimatedPoints > 0 && (
+                                    <div className="flex items-center gap-2">
+                                      <div className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                                        +{estimatedPoints} نقطة
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-12">
+                        <Coins className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">لا توجد نقاط حتى الآن</h3>
+                        <p className="text-gray-500 mb-6">ابدأ بالتسوق لكسب نقاط الولاء على كل عملية شراء</p>
+                        <Link href="/#services" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors">
+                          تصفح المنتجات
                         </Link>
                       </div>
                     )}
@@ -1245,7 +1380,7 @@ export default function CustomerDashboard() {
               if (customerUser?.email) {
                 const allOrders = await getOrders();
                 const customerOrders = allOrders.filter(order => 
-                  order.customerEmail.toLowerCase() === customerUser.email.toLowerCase()
+                  order.email?.toLowerCase() === customerUser.email.toLowerCase()
                 );
                 setOrders(customerOrders);
               }

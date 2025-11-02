@@ -20,7 +20,6 @@ export async function POST(request: NextRequest) {
     }
 
     if (!db) {
-      console.log('Firebase not enabled, simulating token storage');
       return NextResponse.json({
         success: true,
         message: 'Token stored (simulated)',
@@ -85,6 +84,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
 
 
 

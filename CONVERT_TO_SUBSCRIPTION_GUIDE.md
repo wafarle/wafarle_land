@@ -148,8 +148,7 @@ export const createSubscriptionFromOrder = async (orderId: string): Promise<stri
 
 ### **رسائل Console**
 ```typescript
-console.log('🔄 [CONVERT_TO_SUBSCRIPTION] Starting conversion for order:', orderId);
-console.log('✅ [CONVERT_TO_SUBSCRIPTION] Successfully created subscription:', subscriptionId);
+
 console.error('❌ [CONVERT_TO_SUBSCRIPTION] Error converting order to subscription:', error);
 ```
 
@@ -193,6 +192,8 @@ console.error('❌ [CONVERT_TO_SUBSCRIPTION] Error converting order to subscript
 4. **معالجة أخطاء**: رسائل خطأ واضحة في حالة الفشل
 
 الميزة جاهزة للاستخدام! 🎉
+
+
 
 
 

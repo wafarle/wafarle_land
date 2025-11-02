@@ -60,10 +60,8 @@ const handleStatusUpdate = async (reviewId: string, newStatus: 'pending' | 'appr
 ### **تحديث إحصائيات المنتج**
 ```typescript
 export const updateProductReviewStats = async (productId: string): Promise<void> => {
-  console.log('📊 [UPDATE_PRODUCT_REVIEW_STATS] Updating stats for product:', productId);
   
   if (!FIREBASE_ENABLED || !db) {
-    console.log('Firebase not enabled, skipping product stats update');
     return;
   }
 
@@ -84,11 +82,7 @@ export const updateProductReviewStats = async (productId: string): Promise<void>
       updatedAt: serverTimestamp()
     });
 
-    console.log('✅ [UPDATE_PRODUCT_REVIEW_STATS] Product stats updated:', {
-      productId,
-      reviewsCount,
-      averageRating
-    });
+   
   } catch (error) {
     console.error('❌ [UPDATE_PRODUCT_REVIEW_STATS] Error updating product stats:', error);
     throw error;
@@ -271,6 +265,8 @@ const reviews = await getSubscriptionReviews(undefined, 'product-id', 'approved'
 - ✅ فلاتر متقدمة للبحث والتصفية
 
 الميزة جاهزة للاستخدام! 🚀
+
+
 
 
 

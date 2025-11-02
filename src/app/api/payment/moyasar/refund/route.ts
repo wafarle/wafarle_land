@@ -9,7 +9,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { paymentId, amount } = body;
     
-    console.log('💸 Moyasar Refund (simulated):', { paymentId, amount });
 
     return NextResponse.json({
       id: `moy_refund_${Date.now()}`,
@@ -23,6 +22,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
 
 
 

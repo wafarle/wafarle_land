@@ -16,7 +16,6 @@ export async function POST(request: NextRequest) {
       const { intent, purchase_units } = body;
       const orderId = `PAYPAL-SIM-${Date.now()}`;
       
-      console.log('🧪 PayPal API: No credentials - returning simulated response (no redirect)');
       
       return NextResponse.json({
         id: orderId,
@@ -46,7 +45,6 @@ export async function POST(request: NextRequest) {
     
     if (!isRealCredentials) {
       // Simulated mode - return without redirect URL
-      console.log('🧪 PayPal API: Test/simulated mode - no redirect');
       return NextResponse.json({
         id: orderId,
         status: 'CREATED',
@@ -58,8 +56,6 @@ export async function POST(request: NextRequest) {
     }
     
     // Real credentials - in production, create real PayPal order
-    console.log('✅ PayPal API: Real credentials detected - would create real order');
-    
     // For now, still simulate but mark as potentially real
     return NextResponse.json({
       id: orderId,

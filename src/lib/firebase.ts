@@ -40,22 +40,16 @@ if (FIREBASE_ENABLED) {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       try {
         messaging = getMessaging(app);
-        console.log('✅ Firebase Cloud Messaging initialized');
       } catch (error) {
         console.warn('Firebase Messaging initialization error:', error);
-        console.log('Push notifications will not be available');
       }
     }
   } catch (error) {
     console.error('Firebase initialization error:', error);
-    console.log('Falling back to mock mode');
   }
 }
 
-export { app, db, auth, googleProvider, messaging };
-
-// Initialize Analytics only in browser environment and if Firebase is enabled
-let analytics;
+let analytics: any;
 if (typeof window !== 'undefined' && FIREBASE_ENABLED && app) {
   try {
     analytics = getAnalytics(app);
@@ -63,65 +57,102 @@ if (typeof window !== 'undefined' && FIREBASE_ENABLED && app) {
     console.error('Analytics initialization error:', error);
   }
 }
-export { analytics };
 
-export interface ProductOption {
-  id: string;
-  name: string; // مثل: "شهري", "ربع سنوي", "سنوي"
-  duration: number; // عدد الأشهر
-  price: number;
-  originalPrice?: number; // السعر الأصلي قبل الخصم
-  discount?: number; // نسبة الخصم
-  isPopular?: boolean; // الخيار الأكثر شعبية
-  description?: string; // وصف إضافي للخيار
+export async function requestNotificationPermission(): Promise<string | null> {
+  if (!messaging || typeof window === 'undefined') return null;
+
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      const token = await getToken(messaging, {
+        vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY
+      });
+      return token;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error getting notification permission:', error);
+    return null;
+  }
 }
 
-export type ProductType = 'digital' | 'physical' | 'download' | 'service';
+export function onMessageListener() {
+  return new Promise((resolve) => {
+    if (!messaging) {
+      resolve(null);
+      return;
+    }
+
+    onMessage(messaging, (payload) => {
+      resolve(payload);
+    });
+  });
+}
 
 export interface Product {
   id: string;
   name: string;
   price: number; // السعر الافتراضي للعرض العام
-  image: string;
+  image: string; // الصورة الرئيسية (للتوافق مع الكود القديم)
+  images?: string[]; // صور متعددة للمنتج
   externalLink: string;
   description?: string;
   createdAt: Date;
-  category?: string;
+  category?: string; // للتوافق مع الكود القديم
+  categories?: string[]; // تصنيفات متعددة (IDs)
   discount?: string;
   rating?: number;
   features?: string[];
-  // النظام الجديد للخيارات
-  hasOptions?: boolean; // هل المنتج له خيارات متعددة
-  options?: ProductOption[]; // خيارات الاشتراك المختلفة
-  defaultOptionId?: string; // الخيار الافتراضي
-  // حقول التقييمات
-  reviewsCount?: number; // عدد التقييمات
-  averageRating?: number; // متوسط التقييم
-  // نوع المنتج
-  productType?: ProductType; // نوع المنتج: رقمي، ملموس، تنزيل، خدمة
-  // حقول خاصة بالمنتج الملموس
-  weight?: number; // الوزن بالكيلوجرام
-  dimensions?: string; // الأبعاد (مثل: 10x20x30 سم)
-  requiresShipping?: boolean; // هل يحتاج شحن
-  // حقول خاصة بالمنتج الرقمي/التنزيل
-  downloadLink?: string; // رابط التحميل
-  downloadExpiryDays?: number; // عدد الأيام المتاحة للتحميل
-  // حقول خاصة بالخدمة
-  serviceDuration?: string; // مدة الخدمة (مثل: "ساعتان", "يوم واحد")
-  serviceDetails?: string; // تفاصيل إضافية للخدمة
-  // Inventory Management
-  stockManagementEnabled?: boolean; // تفعيل إدارة المخزون
-  stock?: number; // الكمية المتاحة في المخزون
-  lowStockThreshold?: number; // الحد الأدنى لتنبيه المخزون (افتراضي: 10)
-  outOfStock?: boolean; // هل المنتج نفد من المخزون
+  type?: 'digital' | 'physical' | 'subscription';
+  hasPriceOptions?: boolean;
+  priceOptions?: {
+    name: string;
+    price: number;
+  }[];
+  hasColorOptions?: boolean;
+  colorOptions?: {
+    name: string;
+    hexCode?: string;
+    additionalPrice?: number;
+  }[];
+  hasSizeOptions?: boolean;
+  sizeOptions?: {
+    name: string;
+    additionalPrice?: number;
+  }[];
+  durationOptions?: {
+    name: string;
+    duration: string;
+    price: number;
+  }[];
+  hasDurationOptions?: boolean;
+  stock?: number;
+  inStock?: boolean;
+  isAvailable?: boolean;
+  deliveryTime?: string;
+  reviews?: {
+    rating: number;
+    count: number;
+  };
+  badge?: string;
+  isBestSeller?: boolean;
+  isNew?: boolean;
 }
 
-export interface Testimonial {
+export interface Category {
   id: string;
   name: string;
-  message: string;
-  rating: number;
-  avatar?: string;
+  nameEn?: string; // الاسم بالإنجليزية
+  slug: string; // slug للرابط
+  description?: string;
+  icon?: string; // أيقونة التصنيف
+  color?: string; // لون التصنيف
+  parentId?: string; // التصنيف الأب (للتصنيفات الفرعية)
+  order: number; // ترتيب العرض
+  isActive: boolean;
+  productsCount?: number; // عدد المنتجات في هذا التصنيف
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface ContactMessage {
@@ -130,312 +161,229 @@ export interface ContactMessage {
   email: string;
   message: string;
   createdAt: Date;
+  isRead?: boolean;
+  isArchived?: boolean;
+  response?: string;
+  responseDate?: Date;
 }
 
-export interface SubscriptionReview {
+export interface Order {
   id: string;
-  subscriptionId: string;
-  customerId: string;
-  customerEmail: string;
   customerName: string;
-  productId: string;
-  productName: string;
-  rating: number; // 1-5 stars
-  title: string;
-  comment: string;
-  isVerified: boolean; // true if customer actually used the subscription
-  helpful: number; // number of helpful votes
+  email?: string;
+  phone: string;
+  address?: string;
+  city?: string;
+  postalCode?: string;
+  selectedOption?: string;
+  selectedColor?: string;
+  selectedSize?: string;
+  selectedDuration?: string;
+  country?: string;
+  product?: {
+    id: string;
+    name: string;
+    price: number;
+    image: string;
+    quantity?: number;
+  };
+  status: 'pending' | 'processing' | 'completed' | 'cancelled' | 'confirmed' | 'shipped';
+  paymentStatus?: 'pending' | 'paid' | 'failed' | 'refunded';
+  paymentMethod?: string;
+  paymentProof?: string;
+  totalPrice: number;
+  originalPrice?: number;
+  discount?: number;
+  discountCode?: string;
+  shipping?: number;
+  tax?: number;
+  shippingStatus?: 'pending' | 'preparing' | 'shipped' | 'out_for_delivery' | 'delivered';
+  trackingNumber?: string;
+  estimatedDelivery?: Date;
+  notes?: string;
+  staffNotes?: string;
   createdAt: Date;
-  updatedAt: Date;
-  status: 'pending' | 'approved' | 'rejected';
+  updatedAt?: Date;
+  customerId?: string;
 }
 
 export interface Customer {
   id: string;
   name: string;
   email: string;
-  phone: string;
-  avatar?: string;
+  phone?: string;
   address?: string;
   city?: string;
   country?: string;
-  dateOfBirth?: Date;
-  gender?: 'male' | 'female';
-  status: 'active' | 'inactive' | 'blocked';
-  totalOrders: number;
-  totalSpent: number;
-  averageOrderValue: number;
+  postalCode?: string;
+  totalOrders?: number;
+  totalSpent?: number;
+  loyaltyPoints?: number;
+  tier?: 'bronze' | 'silver' | 'gold' | 'platinum';
+  status?: 'active' | 'inactive' | 'blocked';
+  notes?: string;
+  createdAt: Date;
   lastOrderDate?: Date;
-  registrationDate: Date;
-  notes?: string;
-  tags?: string[];
-  preferredPaymentMethod?: 'cash' | 'card' | 'bank_transfer' | 'digital_wallet';
-  authProvider?: 'email' | 'google' | 'facebook' | 'apple';
-  // Loyalty points
-  loyaltyPoints?: number; // نقاط الولاء
-  totalLoyaltyPointsEarned?: number; // إجمالي النقاط المكتسبة
-  totalLoyaltyPointsRedeemed?: number; // إجمالي النقاط المستخدمة
-  loyaltyTier?: 'bronze' | 'silver' | 'gold' | 'platinum'; // فئة الولاء
+  wishlist?: string[]; // Product IDs
+  compareList?: string[]; // Product IDs
+  notifications?: {
+    id: string;
+    type: string;
+    title: string;
+    message: string;
+    read: boolean;
+    createdAt: Date;
+  }[];
 }
 
-export type StaffRole = 'super_admin' | 'admin' | 'manager' | 'support';
-
-export interface StaffUser {
-  uid: string; // معرفه داخل Firebase Auth
-  email: string;
-  name: string;
-  role: StaffRole;
-  avatar?: string;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-  lastLoginAt?: Date;
-}
-
-export interface Order {
-  id: string;
-  customerName: string;
-  customerEmail: string;
-  customerPhone: string;
-  productId: string;
-  productName: string;
-  productPrice: number;
-  quantity: number;
-  totalAmount: number;
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
-  paymentStatus: 'unpaid' | 'paid' | 'refunded';
-  paymentMethod: 'cash' | 'card' | 'bank_transfer' | 'digital_wallet';
-  notes?: string;
-  createdAt: Date;
-  confirmedAt?: Date;
-  deliveredAt?: Date;
-  // Subscription-related fields
-  subscriptionStartDate?: Date;
-  subscriptionEndDate?: Date;
-  subscriptionDurationMonths?: number;
-  subscriptionStatus?: 'active' | 'expired' | 'cancelled' | 'pending';
-  autoRenewal?: boolean;
-  // Shipping and download fields
-  shippingAddress?: string; // العنوان للشحن (للمنتجات الملموسة)
-  downloadLink?: string; // رابط التحميل (للمنتجات الرقمية/التنزيل)
-  productType?: ProductType; // نوع المنتج
-  shippingStatus?: 'pending_shipping' | 'prepared' | 'shipped' | 'in_transit' | 'delivered'; // حالة الشحن
-  shippingTrackingNumber?: string; // رقم تتبع الشحن
-  shippedAt?: Date; // تاريخ الشحن
-  // Discount code fields
-  discountCode?: string; // كود الخصم المستخدم
-  discountAmount?: number; // قيمة الخصم المطبقة
-  originalAmount?: number; // المبلغ الأصلي قبل الخصم
-  // Invoice fields
-  invoiceNumber?: string; // رقم الفاتورة التسلسلي
-  invoiceGeneratedAt?: Date; // تاريخ توليد الفاتورة
-  invoiceSentAt?: Date; // تاريخ إرسال الفاتورة
-  // Payment gateway fields
-  paymentGateway?: 'paypal' | 'stripe' | 'moyasar' | 'manual'; // بوابة الدفع المستخدمة
-  paymentGatewayTransactionId?: string; // رقم المعاملة من البوابة
-  paymentGatewayOrderId?: string; // رقم الطلب في البوابة
-  // Return and refund fields
-  returnStatus?: 'none' | 'requested' | 'approved' | 'rejected' | 'returned' | 'exchanged'; // حالة الإرجاع
-  returnRequestedAt?: Date; // تاريخ طلب الإرجاع
-  returnReason?: string; // سبب الإرجاع
-  returnApprovedAt?: Date; // تاريخ الموافقة على الإرجاع
-  returnCompletedAt?: Date; // تاريخ إكمال الإرجاع
-  refundAmount?: number; // مبلغ الاسترجاع
-  refundMethod?: 'original' | 'store_credit' | 'bank_transfer'; // طريقة الاسترجاع
-  refundCompletedAt?: Date; // تاريخ إكمال الاسترجاع
-}
-
-// New Subscription interface
 export interface Subscription {
   id: string;
-  orderId: string;
-  customerId: string;
-  customerEmail: string;
-  productId: string;
-  productName: string;
-  productImage?: string;
-  planType: string; // شهري، ربع سنوي، سنوي
+  name: string;
+  description?: string;
   price: number;
-  startDate: Date;
-  endDate: Date;
-  durationMonths: number;
-  status: 'active' | 'expired' | 'cancelled' | 'pending' | 'paused';
-  autoRenewal: boolean;
-  paymentStatus: 'paid' | 'unpaid' | 'failed';
-  remainingDays: number;
-  usageCount?: number; // عدد مرات الاستخدام
-  maxUsage?: number; // الحد الأقصى للاستخدام
-  features: string[]; // المميزات المتاحة
+  duration: string; // e.g., "شهري", "سنوي"
+  features?: string[];
+  isActive?: boolean;
   createdAt: Date;
-  updatedAt: Date;
-  notes?: string;
 }
 
-// Chat interfaces
 export interface ChatMessage {
   id: string;
   conversationId: string;
-  content: string;
-  sender: 'customer' | 'support';
-  senderName?: string;
-  senderEmail?: string; // Optional - support agents may not have email
+  senderId: string;
+  senderType: 'staff' | 'customer';
+  senderName: string;
+  message: string;
   timestamp: Date;
-  status: 'sending' | 'sent' | 'delivered' | 'read';
-  type: 'text' | 'system' | 'file';
-  metadata?: Record<string, any>;
+  isRead?: boolean;
 }
 
 export interface ChatConversation {
   id: string;
   customerId: string;
   customerName: string;
-  customerEmail: string;
-  supportAgentId?: string;
-  supportAgentName?: string;
-  status: 'active' | 'closed' | 'pending';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  category?: string;
-  subject?: string;
+  customerEmail?: string;
+  status: 'open' | 'closed';
   lastMessage?: string;
-  lastMessageTime: Date;
+  lastMessageTime?: Date;
+  unreadCount?: number;
   createdAt: Date;
-  closedAt?: Date;
-  tags?: string[];
-  satisfaction?: number; // 1-5 rating
+  assignedTo?: string;
 }
 
-// Blog System Interfaces
-export interface BlogPost {
+export interface SubscriptionReview {
   id: string;
-  title: string;
-  slug: string;
-  excerpt: string;
-  content: string;
-  featuredImage?: string;
-  images?: string[]; // Array of image URLs/base64
-  categoryId: string;
-  categories?: string[];
-  tags: string[];
-  authorId: string;
-  authorName: string;
-  status: 'draft' | 'published' | 'scheduled' | 'archived';
-  visibility: 'public' | 'private' | 'password';
-  password?: string;
-  publishedAt?: Date;
-  scheduledAt?: Date;
+  subscriptionId: string;
+  customerId: string;
+  customerName: string;
+  rating: number;
+  comment: string;
   createdAt: Date;
-  updatedAt: Date;
-  viewCount: number;
-  likesCount: number;
-  commentsCount: number;
-  // SEO fields
-  seoTitle?: string;
-  seoDescription?: string;
-  seoKeywords?: string[];
-  seoImage?: string;
-  seoAlt?: string;
-  canonicalUrl?: string;
-  robotsIndex?: boolean;
-  robotsFollow?: boolean;
-  seo?: {
-    title?: string;
-    description?: string;
-    keywords?: string[];
-    image?: string;
-    alt?: string;
-    canonicalUrl?: string;
-    robotsIndex?: boolean;
-    robotsFollow?: boolean;
-    structuredData?: {
-      article?: {
-        headline?: string;
-        description?: string;
-        image?: string;
-        author?: string;
-        publisher?: string;
-        datePublished?: string;
-        dateModified?: string;
-        mainEntityOfPage?: string;
-      };
-      breadcrumb?: {
-        name: string;
-        item: string;
-      }[];
-    };
-  };
-  // Additional fields
-  readingTime: number; // in minutes
-  language: 'ar' | 'en';
-  featured: boolean;
+  isApproved?: boolean;
 }
 
-export interface BlogCategory {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  color: string;
-  icon?: string;
-  parentId?: string;
-  postsCount: number;
-  order: number;
-  isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface BlogTag {
-  id: string;
-  name: string;
-  slug: string;
-  color: string;
-  postsCount: number;
-  createdAt: Date;
-}
-
-export interface BlogComment {
-  id: string;
-  postId: string;
-  parentId?: string; // for replies
-  authorName: string;
-  authorEmail: string;
-  authorWebsite?: string;
-  content: string;
-  status: 'pending' | 'approved' | 'spam' | 'rejected';
-  ipAddress: string;
-  userAgent: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-// Discount Code interface
 export interface DiscountCode {
   id: string;
-  code: string; // كود الخصم (مثل: REVIEW10)
-  type: 'percentage' | 'fixed'; // نوع الخصم: نسبة مئوية أو مبلغ ثابت
-  value: number; // قيمة الخصم (نسبة مئوية أو مبلغ)
-  description?: string; // وصف الكود
-  minPurchaseAmount?: number; // الحد الأدنى للشراء
-  maxDiscountAmount?: number; // الحد الأقصى للخصم (للكوبونات نسبة مئوية)
-  usageLimit?: number; // الحد الأقصى لعدد الاستخدامات
-  usedCount: number; // عدد مرات الاستخدام الحالية
-  usageLimitPerCustomer?: number; // حد الاستخدام لكل عميل
-  validFrom: Date; // تاريخ بدء الصلاحية
-  validTo: Date; // تاريخ انتهاء الصلاحية
-  isActive: boolean; // حالة الكود (نشط/معطل)
-  applicableProductIds?: string[]; // منتجات محددة فقط (فارغ = جميع المنتجات)
-  applicableCategories?: string[]; // فئات محددة فقط
-  excludeProductIds?: string[]; // منتجات مستثناة من الخصم
+  code: string;
+  type: 'percentage' | 'fixed';
+  value: number;
+  validFrom?: Date;
+  validTo?: Date;
+  maxUses?: number;
+  currentUses?: number;
+  minPurchase?: number;
+  isActive: boolean;
+  description?: string;
+  autoApply?: boolean;
   createdAt: Date;
-  updatedAt: Date;
-  createdBy: string; // من أنشأ الكود
-  // Advanced features
-  priority?: number; // أولوية الكوبون (1 = أعلى أولوية، يتم تطبيقه أولاً)
-  stackable?: boolean; // هل يمكن استخدامه مع كوبونات أخرى
-  autoApply?: boolean; // هل يتم تطبيقه تلقائياً
-  loyaltyTierOnly?: 'bronze' | 'silver' | 'gold' | 'platinum'; // مخصص لفئة ولاء محددة
+  updatedAt?: Date;
+}
+
+export interface StaffRole {
+  id: string;
+  name: string;
+  permissions: string[];
+  description?: string;
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+export interface StaffUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  permissions: string[];
+  isActive: boolean;
+  lastLogin?: Date;
+  createdAt: Date;
+  updatedAt?: Date;
+  avatar?: string;
+  phone?: string;
+  department?: string;
+}
+
+export interface StaffActivity {
+  id: string;
+  staffId: string;
+  staffName: string;
+  action: string;
+  target?: string;
+  targetId?: string;
+  details?: string;
+  timestamp: Date;
+  ipAddress?: string;
+}
+
+export interface LoyaltyProgram {
+  id: string;
+  name: string;
+  description?: string;
+  pointsPerPurchase: number; // عدد النقاط لكل وحدة عملة
+  tiers: {
+    name: string;
+    minPoints: number;
+    benefits: string[];
+    discount?: number;
+  }[];
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
+export interface LoyaltyTransaction {
+  id: string;
+  customerId: string;
+  type: 'earn' | 'redeem';
+  points: number;
+  reason: string;
+  orderId?: string;
+  createdAt: Date;
+}
+
+export interface DiscountPromotion {
+  id: string;
+  name: string;
+  type: 'percentage' | 'fixed' | 'buy_x_get_y' | 'bundle' | 'bulk';
+  value?: number;
+  targetProducts?: string[];
+  targetCategories?: string[];
+  conditions?: {
+    minPurchase?: number;
+    minQuantity?: number;
+    specificProducts?: string[];
+  };
+  validFrom: Date;
+  validTo: Date;
+  isActive: boolean;
+  usageLimit?: number;
+  currentUsage?: number;
+  stackable?: boolean;
+  description?: string;
+  createdAt: Date;
+  updatedAt?: Date;
   bulkDiscount?: {
-    enabled: boolean; // خصم على الكمية
+    enabled: boolean;
     tiers: Array<{ minQuantity: number; discount: number }>; // مستويات الخصم
   };
   minimumItems?: number; // الحد الأدنى لعدد المنتجات
@@ -447,3 +395,142 @@ export interface DiscountCode {
     productId?: string; // منتج معين أو أي منتج
   };
 }
+
+// License & Version Management Interfaces
+export interface License {
+  id: string;
+  licenseKey: string;
+  customerName: string;
+  customerEmail: string;
+  customerPhone?: string;
+  domain: string; // النطاق المسموح له
+  domains?: string[]; // نطاقات إضافية
+  purchaseDate: Date;
+  expiryDate?: Date;
+  isActive: boolean;
+  isPermanent: boolean; // ترخيص دائم أو مؤقت
+  version: string; // الإصدار المشترى
+  allowedVersion?: string; // آخر إصدار مسموح به
+  type: 'basic' | 'professional' | 'enterprise'; // نوع الترخيص
+  features: string[]; // الميزات المتاحة
+  maxProducts?: number; // الحد الأقصى للمنتجات
+  maxOrders?: number; // الحد الأقصى للطلبات شهرياً
+  status: 'active' | 'expired' | 'suspended' | 'trial';
+  lastCheckDate?: Date; // آخر تحقق من الترخيص
+  installationId?: string; // معرف التثبيت الفريد
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SystemVersion {
+  id: string;
+  version: string; // e.g., "1.0.0"
+  releaseDate: Date;
+  isLatest: boolean;
+  isStable: boolean;
+  isBeta?: boolean;
+  title: string;
+  titleEn?: string;
+  description: string;
+  descriptionEn?: string;
+  features: string[]; // قائمة الميزات الجديدة
+  bugFixes: string[]; // قائمة الإصلاحات
+  breaking?: boolean; // هل يحتوي على تغييرات جذرية
+  minRequiredVersion?: string; // الحد الأدنى من الإصدار المطلوب للترقية
+  downloadUrl?: string;
+  documentationUrl?: string;
+  requirements?: string[]; // متطلبات النظام
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface UpdateNotification {
+  id: string;
+  version: string;
+  title: string;
+  message: string;
+  type: 'update' | 'security' | 'feature' | 'bugfix';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  targetLicenses?: string[]; // تراخيص محددة أو الكل
+  targetLicenseTypes?: ('basic' | 'professional' | 'enterprise')[];
+  isActive: boolean;
+  sendEmail: boolean;
+  emailSent?: boolean;
+  readBy?: string[]; // IDs of users who read the notification
+  createdAt: Date;
+  expiresAt?: Date;
+}
+
+export interface LicenseCheck {
+  id: string;
+  licenseKey: string;
+  domain: string;
+  checkDate: Date;
+  currentVersion: string;
+  latestVersion: string;
+  isValid: boolean;
+  status: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
+export interface BlogPost {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string;
+  content: string;
+  author: string;
+  authorId: string;
+  authorAvatar?: string;
+  coverImage: string;
+  featuredImage?: string;
+  categories: string[];
+  tags: string[];
+  status: 'draft' | 'published' | 'scheduled';
+  visibility?: 'public' | 'private' | 'protected';
+  featured: boolean;
+  views: number;
+  likes: number;
+  publishedAt?: Date;
+  scheduledAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+  metaTitle?: string;
+  seoTitle?: string;
+  metaDescription?: string;
+  seoDescription?: string;
+  seoKeywords?: string[];
+  seoImage?: string;
+  seoAlt?: string;
+  canonicalUrl?: string;
+  readingTime?: number;
+  seo?: {
+    title?: string;
+    description?: string;
+    keywords?: string[];
+    image?: string;
+    alt?: string;
+    canonicalUrl?: string;
+    robotsIndex?: boolean;
+    robotsFollow?: boolean;
+  };
+  robotsIndex?: boolean;
+  robotsFollow?: boolean;
+  images?: string[];
+}
+
+export interface BlogCategory {
+  id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  postsCount: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export { app, db, auth, googleProvider, analytics, messaging, requestNotificationPermission, onMessageListener };

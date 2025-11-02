@@ -2,20 +2,19 @@ import {
   collection, 
   doc, 
   getDocs, 
+  getDoc,
   query, 
   where,
   orderBy,
   limit as firestoreLimit
 } from 'firebase/firestore';
-import { BlogPost } from '@/lib/firebase';
+import { BlogPost, Product } from '@/lib/firebase';
 import { db, FIREBASE_ENABLED } from '@/lib/firebase';
 
 // Server-side function to get blog post by slug
 export const getBlogPostServer = async (slugOrId: string): Promise<BlogPost | null> => {
-  console.log('🚀 [GET_BLOG_POST_SERVER] Called with ID/slug:', slugOrId);
   
   if (!FIREBASE_ENABLED || !db) {
-    console.log('🔍 [GET_BLOG_POST_SERVER] Firebase not enabled, returning null');
     return null;
   }
 
@@ -30,19 +29,7 @@ export const getBlogPostServer = async (slugOrId: string): Promise<BlogPost | nu
     const doc = snapshot.docs[0];
     const docData = doc.data() as any;
     
-    console.log('📄 [GET_BLOG_POST_SERVER] Document data:', {
-      id: doc.id,
-      title: docData.title,
-      seoTitle: docData.seoTitle,
-      seoDescription: docData.seoDescription,
-      seoKeywords: docData.seoKeywords,
-      seoImage: docData.seoImage,
-      seoAlt: docData.seoAlt,
-      canonicalUrl: docData.canonicalUrl,
-      robotsIndex: docData.robotsIndex,
-      robotsFollow: docData.robotsFollow,
-      seo: docData.seo
-    });
+  
     
     return {
       id: doc.id,
@@ -60,10 +47,8 @@ export const getBlogPostServer = async (slugOrId: string): Promise<BlogPost | nu
 
 // Server-side function to get blog posts
 export const getBlogPostsServer = async (limit?: number, category?: string, status?: string): Promise<BlogPost[]> => {
-  console.log('🚀 [GET_BLOG_POSTS_SERVER] Called with limit:', limit, 'category:', category, 'status:', status);
   
   if (!FIREBASE_ENABLED || !db) {
-    console.log('🔍 [GET_BLOG_POSTS_SERVER] Firebase not enabled, returning empty array');
     return [];
   }
 
@@ -104,10 +89,8 @@ export const getBlogPostsServer = async (limit?: number, category?: string, stat
 
 // Server-side function to get blog categories
 export const getBlogCategoriesServer = async () => {
-  console.log('🚀 [GET_BLOG_CATEGORIES_SERVER] Called');
   
   if (!FIREBASE_ENABLED || !db) {
-    console.log('🔍 [GET_BLOG_CATEGORIES_SERVER] Firebase not enabled, returning empty array');
     return [];
   }
 
@@ -122,5 +105,34 @@ export const getBlogCategoriesServer = async () => {
   } catch (error) {
     console.error('Error getting blog categories (server):', error);
     return [];
+  }
+};
+
+// Server-side function to get product by ID
+export const getProductByIdServer = async (id: string): Promise<Product | null> => {
+  
+  if (!FIREBASE_ENABLED || !db) {
+    return null;
+  }
+
+  try {
+    const productRef = doc(db, 'products', id);
+    const productDoc = await getDoc(productRef);
+    
+    if (!productDoc.exists()) {
+      return null;
+    }
+    
+    const docData = productDoc.data() as any;
+    const product = {
+      id: productDoc.id,
+      ...docData,
+      createdAt: docData.createdAt?.toDate() || new Date(),
+    } as Product;
+    
+    return product;
+  } catch (error) {
+    console.error('❌ [GET_PRODUCT_BY_ID_SERVER] Error getting product:', error);
+    return null;
   }
 };

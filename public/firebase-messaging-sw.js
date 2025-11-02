@@ -27,7 +27,6 @@ const messaging = firebase.messaging();
 
 // Handle background messages
 messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Received background message:', payload);
   
   // Customize notification here
   const notificationTitle = payload.notification?.title || 'إشعار جديد';
@@ -46,7 +45,6 @@ messaging.onBackgroundMessage((payload) => {
 
 // Handle notification clicks
 self.addEventListener('notificationclick', (event) => {
-  console.log('[firebase-messaging-sw.js] Notification clicked:', event);
   
   event.notification.close();
 

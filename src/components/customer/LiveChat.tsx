@@ -229,11 +229,7 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
           paymentMethod: 'card' as const, // Default method
           notes: `طلب من الشات - ${selectedPlan} لمدة ${selectedDuration} شهر - محادثة ${conversationId || 'unknown'}`
         };
-
-        console.log('📋 Creating order first:', orderData);
         const orderId = await addOrder(orderData);
-        console.log('✅ Order created with ID:', orderId);
-
         // Then create subscription linked to the order
         const subscriptionData = {
           orderId: orderId, // Link to the actual order
@@ -256,11 +252,7 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
           features: selectedProduct.features || [],
           notes: `اشتراك من الشات - مرتبط بالطلب ${orderId}`
         };
-
-        console.log('📊 Creating subscription with data:', subscriptionData);
         const subscriptionId = await addSubscription(subscriptionData);
-        console.log('✅ Subscription created with ID:', subscriptionId);
-
         await sendChatMessage(
           conversationId!,
           `🎉 رائع! تم تأكيد طلب اشتراكك وحفظه في النظام.\n\n📦 ${selectedProduct.name}\n⏰ ${selectedDuration} شهر (${selectedPlan})\n💰 ${formatPrice(finalPrice)}\n📋 رقم الطلب: ${orderId}\n🔗 رقم الاشتراك: ${subscriptionId}\n\n📧 ستصلك تفاصيل الدفع على بريدك الإلكتروني قريباً.\n💳 بعد إتمام الدفع سيتم تفعيل اشتراكك فوراً.\n\n🎯 يمكنك متابعة حالة طلبك والاشتراك من لوحة التحكم.`,

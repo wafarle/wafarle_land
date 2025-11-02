@@ -29,8 +29,18 @@ export const NotificationManager = () => {
     data?: Record<string, string>;
     timestamp: Date;
   }>>([]);
+  const [prefsOpen, setPrefsOpen] = useState(false);
+  const [prefs, setPrefs] = useState<{ orders: boolean; offers: boolean; updates: boolean }>(
+    { orders: true, offers: true, updates: true }
+  );
 
   useEffect(() => {
+    // Load prefs from localStorage
+    try {
+      const saved = localStorage.getItem('notifPrefs');
+      if (saved) setPrefs(JSON.parse(saved));
+    } catch {}
+
     if (!isNotificationSupported()) {
       return;
     }
@@ -53,6 +63,9 @@ export const NotificationManager = () => {
       
       // Listen for foreground messages
       const unsubscribe = onForegroundMessage((payload: NotificationPayload) => {
+        // Filter by type if provided
+        const type = payload.data?.type as 'orders' | 'offers' | 'updates' | undefined;
+        if (type && prefs[type] === false) return;
         const notification = {
           id: Date.now().toString(),
           title: payload.notification?.title || 'إشعار جديد',
@@ -101,6 +114,53 @@ export const NotificationManager = () => {
 
   return (
     <>
+      {/* Preferences Panel Toggle */}
+      <button
+        onClick={() => setPrefsOpen(!prefsOpen)}
+        className="fixed bottom-4 right-4 z-[9999] px-3 py-2 rounded-lg bg-white border border-gray-200 shadow hover:bg-gray-50 text-sm"
+      >
+        تفضيلات الإشعارات
+      </button>
+
+      {/* Preferences Panel */}
+      <AnimatePresence>
+        {prefsOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-16 right-4 z-[9999] w-72 bg-white border border-gray-200 rounded-lg shadow"
+          >
+            <div className="p-3 border-b font-semibold">تفضيلات الإشعارات</div>
+            <div className="p-3 space-y-2 text-sm">
+              <label className="flex items-center justify-between">
+                <span>طلبات</span>
+                <input type="checkbox" checked={prefs.orders} onChange={(e) => {
+                  const next = { ...prefs, orders: e.target.checked };
+                  setPrefs(next);
+                  localStorage.setItem('notifPrefs', JSON.stringify(next));
+                }} />
+              </label>
+              <label className="flex items-center justify-between">
+                <span>عروض</span>
+                <input type="checkbox" checked={prefs.offers} onChange={(e) => {
+                  const next = { ...prefs, offers: e.target.checked };
+                  setPrefs(next);
+                  localStorage.setItem('notifPrefs', JSON.stringify(next));
+                }} />
+              </label>
+              <label className="flex items-center justify-between">
+                <span>تحديثات</span>
+                <input type="checkbox" checked={prefs.updates} onChange={(e) => {
+                  const next = { ...prefs, updates: e.target.checked };
+                  setPrefs(next);
+                  localStorage.setItem('notifPrefs', JSON.stringify(next));
+                }} />
+              </label>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* Permission Prompt */}
       <AnimatePresence>
         {showPermissionPrompt && permission === 'default' && (

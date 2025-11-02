@@ -10,7 +10,6 @@ export async function POST(request: NextRequest) {
     const { amount, currency, description, metadata, callback_url } = body;
     
     // In production, use Moyasar SDK or API
-    console.log('🇸🇦 Moyasar Payment Created (simulated):', { amount, currency, description });
 
     const paymentId = `moy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
@@ -34,6 +33,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
 
 
 

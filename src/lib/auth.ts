@@ -11,7 +11,6 @@ import { auth, FIREBASE_ENABLED } from '@/lib/firebase';
 // Authentication functions
 export const signInAdmin = async (email: string, password: string) => {
   if (!FIREBASE_ENABLED || !auth) {
-    console.log('Firebase not enabled, using mock authentication');
     // Mock admin user for development
     if (email === 'admin@wafarle.com' && password === 'admin123') {
       return { 
@@ -34,7 +33,6 @@ export const signInAdmin = async (email: string, password: string) => {
 
 export const signOutAdmin = async () => {
   if (!FIREBASE_ENABLED || !auth) {
-    console.log('Firebase not enabled, simulating sign out');
     return Promise.resolve();
   }
 
@@ -69,3 +67,4 @@ export const isAdmin = (user: User | null): boolean => {
   // For now, we'll check if the email is admin@wafarle.com
   return user.email === 'admin@wafarle.com';
 };
+

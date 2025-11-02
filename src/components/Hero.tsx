@@ -164,14 +164,20 @@ const Hero = () => {
               className="flex flex-col sm:flex-row gap-3 md:gap-4"
               style={{ marginBottom: '10px' }}
             >
-              <Link href="#services" className="btn-primary text-base md:text-lg px-6 md:px-8 py-3 md:py-4">
-                اكتشف العروض
+              <Link 
+                href="/products" 
+                className="btn-primary text-base md:text-lg px-6 md:px-8 py-3 md:py-4 inline-flex items-center gap-2"
+              >
+                تصفح المنتجات
                 <ArrowRight className="w-4 h-4 md:w-5 md:h-5" />
               </Link>
-              <button className="btn-outline text-base md:text-lg px-6 md:px-8 py-3 md:py-4 flex items-center gap-2">
-                <Play className="w-4 h-4 md:w-5 md:h-5" />
-                شاهد الفيديو
-              </button>
+              <Link 
+                href="/deals" 
+                className="btn-outline text-base md:text-lg px-6 md:px-8 py-3 md:py-4 inline-flex items-center gap-2"
+              >
+                <Tag className="w-4 h-4 md:w-5 md:h-5" />
+                العروض الخاصة
+              </Link>
             </motion.div>
 
             {/* Stats */}

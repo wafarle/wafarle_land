@@ -9,7 +9,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { captureId, amount } = body;
     
-    console.log('💸 PayPal Refund (simulated):', { captureId, amount });
 
     return NextResponse.json({
       id: `REFUND-${Date.now()}`,
@@ -24,6 +23,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
 
 
 

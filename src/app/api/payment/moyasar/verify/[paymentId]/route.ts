@@ -43,3 +43,5 @@ export async function GET(
     return NextResponse.json({ error: 'Verification failed' }, { status: 500 });
   }
 }
+
+

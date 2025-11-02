@@ -34,6 +34,7 @@ const NewBlogPost = () => {
     excerpt: '',
     content: '',
     categoryId: '',
+    categories: [] as string[],
     tags: [] as string[],
     status: 'published' as BlogPost['status'],
     visibility: 'public' as BlogPost['visibility'],
@@ -83,19 +84,18 @@ const NewBlogPost = () => {
         slug,
         excerpt: formData.excerpt,
         content: formData.content,
-        categoryId: formData.categoryId,
+        categories: formData.categories.length > 0 ? formData.categories : (formData.categoryId ? [formData.categoryId] : []),
         tags: formData.tags,
         status: formData.status,
         visibility: formData.visibility,
         featuredImage: formData.featuredImage,
         featured: formData.featured,
+        author: 'المحرر',
         authorId: 'admin',
-        authorName: 'المحرر',
+        coverImage: formData.featuredImage,
         readingTime,
-        language: 'ar',
-        viewCount: 0,
-        likesCount: 0,
-        commentsCount: 0,
+        views: 0,
+        likes: 0,
         seo: {
           title: formData.seoTitle || formData.title,
           description: formData.seoDescription || formData.excerpt,
@@ -104,19 +104,7 @@ const NewBlogPost = () => {
           alt: formData.seoAlt,
           canonicalUrl: formData.canonicalUrl,
           robotsIndex: formData.robotsIndex,
-          robotsFollow: formData.robotsFollow,
-          structuredData: {
-            article: {
-              headline: formData.seoTitle || formData.title,
-              description: formData.seoDescription || formData.excerpt,
-              image: formData.seoImage || formData.featuredImage,
-              author: 'المحرر',
-              publisher: 'وافرلي',
-              datePublished: new Date().toISOString(),
-              dateModified: new Date().toISOString(),
-              mainEntityOfPage: formData.canonicalUrl || `https://wafarle.com/blog/${slug}`
-            }
-          }
+          robotsFollow: formData.robotsFollow
         },
         seoTitle: formData.seoTitle || formData.title,
         seoDescription: formData.seoDescription || formData.excerpt,

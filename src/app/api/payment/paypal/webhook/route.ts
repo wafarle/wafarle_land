@@ -15,9 +15,6 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const eventType = body.event_type;
-
-    console.log('📥 PayPal webhook received:', eventType);
-
     switch (eventType) {
       case 'PAYMENT.CAPTURE.COMPLETED':
         const payment = body.resource;
@@ -26,12 +23,9 @@ export async function POST(request: NextRequest) {
         if (orderId) {
           await updateOrder(orderId, {
             paymentStatus: 'paid',
-            paymentGateway: 'paypal',
-            paymentGatewayTransactionId: payment.id,
-            paymentGatewayOrderId: payment.id,
+            paymentMethod: 'paypal',
             status: 'confirmed',
           });
-          console.log('✅ Order updated after successful PayPal payment:', orderId);
         }
         break;
 
@@ -42,11 +36,9 @@ export async function POST(request: NextRequest) {
 
         if (declinedOrderId) {
           await updateOrder(declinedOrderId, {
-            paymentStatus: 'unpaid',
-            paymentGateway: 'paypal',
-            paymentGatewayTransactionId: declinedPayment.id,
+            paymentStatus: 'failed',
+            paymentMethod: 'paypal',
           });
-          console.log('❌ Order updated after declined PayPal payment:', declinedOrderId);
         }
         break;
 
@@ -58,12 +50,10 @@ export async function POST(request: NextRequest) {
           await updateOrder(refundedOrderId, {
             paymentStatus: 'refunded',
           });
-          console.log('💰 Order updated after PayPal refund:', refundedOrderId);
         }
         break;
 
       default:
-        console.log('⚠️ Unhandled PayPal event type:', eventType);
     }
 
     return NextResponse.json({ received: true });
@@ -75,6 +65,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+
 
 
 

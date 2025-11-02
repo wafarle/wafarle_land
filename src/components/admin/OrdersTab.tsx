@@ -289,7 +289,6 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
       setFilteredOrders(ordersData);
       
       alert('تم إنشاء الاشتراك بنجاح!');
-      console.log('✅ Subscription created from order:', orderId);
     } catch (error) {
       console.error('❌ Error creating subscription from order:', error);
       alert('حدث خطأ في إنشاء الاشتراك');
@@ -314,14 +313,9 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
     try {
       setConvertingToSubscription(orderId);
       setActionMenuOrder(null);
-      
-      console.log('🔄 [CONVERT_TO_SUBSCRIPTION] Starting conversion for order:', orderId);
-      
       const subscriptionId = await createSubscriptionFromOrder(orderId);
       
       if (subscriptionId) {
-        console.log('✅ [CONVERT_TO_SUBSCRIPTION] Successfully created subscription:', subscriptionId);
-        
         // Refresh orders to show updated data
         await loadOrders();
         
@@ -424,14 +418,14 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                     <tr>
                       <td>${order.productName}</td>
                       <td>${order.quantity}</td>
-                      <td>$${order.productPrice}</td>
-                      <td>$${order.totalAmount}</td>
+                      <td>${order.productPrice} ر.س</td>
+                      <td>${order.totalAmount} ر.س</td>
                     </tr>
                   </tbody>
                 </table>
 
                 <div class="total">
-                  <p>المجموع الكلي: $${order.totalAmount}</p>
+                  <p>المجموع الكلي: ${order.totalAmount} ر.س</p>
                   <p>حالة الدفع: ${paymentStatusConfig[order.paymentStatus].label}</p>
                   <p>طريقة الدفع: ${order.paymentMethod === 'cash' ? 'نقدي' : 
                                    order.paymentMethod === 'card' ? 'بطاقة ائتمان' :

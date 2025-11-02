@@ -8,11 +8,16 @@ import { getProducts, updateAllProductsReviewStats, addSampleReviews } from '@/l
 import CurrencyDisplay from './CurrencyDisplay';
 import OrderForm from './OrderForm';
 import QuickViewModal from './QuickViewModal';
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const Products = () => {
+  const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [compareIds, setCompareIds] = useState<string[]>([]);
   const [showOrderForm, setShowOrderForm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showQuickView, setShowQuickView] = useState(false);
@@ -165,9 +170,18 @@ const Products = () => {
     setQuickViewProduct(null);
   };
 
-  const filteredProducts = selectedCategory === 'all' 
-    ? products 
-    : products.filter(product => product.category === selectedCategory);
+  const filteredProducts = (selectedCategory === 'all'
+    ? products
+    : products.filter(product => product.category === selectedCategory))
+    .filter(p => {
+      if (!searchTerm.trim()) return true;
+      const q = searchTerm.toLowerCase();
+      return (
+        p.name.toLowerCase().includes(q) ||
+        (p.description || '').toLowerCase().includes(q) ||
+        (p.features || []).some(f => f.toLowerCase().includes(q))
+      );
+    });
 
   if (loading) {
     return (
@@ -193,9 +207,18 @@ const Products = () => {
           className="text-center mb-20"
           style={{ marginBottom: '10px' }}
         >
-          <h2 className="text-2xl md:text-4xl lg:text-5xl font-bold mb-4 md:mb-6">
-            خدماتنا <span className="text-gradient">المميزة</span>
-          </h2>
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <h2 className="text-2xl md:text-4xl lg:text-5xl font-bold">
+              خدماتنا <span className="text-gradient">المميزة</span>
+            </h2>
+            <Link
+              href="/products"
+              className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 text-sm md:text-base whitespace-nowrap"
+            >
+              عرض الكل
+              <ExternalLink className="w-4 h-4" />
+            </Link>
+          </div>
           <p className="text-base md:text-xl text-gray-600 max-w-3xl mx-auto px-4">
             اكتشف مجموعة واسعة من خدمات الاشتراكات التي نقدمها بأسعار تنافسية وجودة عالية
           </p>
@@ -222,12 +245,12 @@ const Products = () => {
           </div>
         </motion.div>
 
-        {/* Category Filter */}
+        {/* Category & Search */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2 }}
-          className="flex flex-wrap justify-center gap-3 md:gap-6 mb-12 md:mb-16"
+          className="flex flex-wrap items-center justify-center gap-3 md:gap-6 mb-12 md:mb-16"
           style={{ marginBottom: '10px' }}
         >
           {categories.map((category) => (
@@ -244,20 +267,34 @@ const Products = () => {
               {category.name}
             </button>
           ))}
+          <div className="w-full md:w-auto md:ml-auto max-w-md">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="ابحث عن خدمة أو ميزة..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-transparent"
+            />
+          </div>
         </motion.div>
 
         {/* Products Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-10" style={{ marginBottom: '10px' }}>
-          {filteredProducts.map((product, index) => (
-            <motion.div
+          {filteredProducts.filter(p => p.id).map((product, index) => (
+            <div
               key={product.id}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
-              className="card group hover:scale-105"
+              className="card group hover:scale-105 cursor-pointer relative"
               style={{ padding: '15px' }}
+              onClick={e => {
+                // تجاهل الضغط على الأزرار أو <a> الداخلي
+                const tag = (e.target as HTMLElement).tagName;
+                if (tag === 'BUTTON' || tag === 'A' || tag === 'LABEL' || (e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('a') || (e.target as HTMLElement).closest('label')) {
+                  return;
+                }
+                router.push(`/products/${product.id}`);
+              }}
             >
-              {/* Product Header */}
+              {/* Header (غير قابل للنقر الآن، الكارد كله هو الرابط) */}
               <div className="relative mb-8">
                 <div className="w-full h-48 bg-gradient-to-br from-blue-100 to-purple-100 rounded-xl flex items-center justify-center mb-4">
                   <div className="w-20 h-20 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
@@ -266,14 +303,12 @@ const Products = () => {
                     </span>
                   </div>
                 </div>
-                
                 {/* Discount Badge */}
                 {product.discount && (
                   <div className="absolute top-4 right-4 bg-gradient-to-r from-emerald-500 to-blue-500 text-white px-3 py-1 rounded-full text-sm font-bold">
                     خصم {product.discount}
                   </div>
                 )}
-
                 {/* Stock Status Badge - For Physical Products */}
                 {product.productType === 'physical' && product.stockManagementEnabled && (
                   <div className="absolute bottom-4 right-4">
@@ -305,14 +340,16 @@ const Products = () => {
                   )}
                 </div>
               </div>
+              {/* اسم المنتج clickable أيضاً */}
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">{product.name}</h3>
+              </div>
 
-              {/* Product Content */}
+              {/* باقي جسم الكارت: خارج Link بالكامل */}
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">{product.name}</h3>
                   <p className="text-gray-600">{product.description}</p>
                 </div>
-
                 {/* Features */}
                 <div className="space-y-2">
                   {product.features?.slice(0, 3).map((feature, idx) => (
@@ -322,7 +359,6 @@ const Products = () => {
                     </div>
                   ))}
                 </div>
-
                 {/* Price & CTA */}
                 <div className="pt-4 border-t border-gray-200">
                   <div className="flex items-center justify-between mb-4">
@@ -339,7 +375,6 @@ const Products = () => {
                       <span>تسليم فوري</span>
                     </div>
                   </div>
-                  
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       onClick={() => handleQuickViewClick(product)}
@@ -360,6 +395,24 @@ const Products = () => {
                       <ShoppingCart className="w-3 h-3" />
                       {product.productType === 'physical' && product.stockManagementEnabled && (product.outOfStock || (product.stock || 0) <= 0) ? 'نفد' : 'اطلب الآن'}
                     </button>
+                    <label className="bg-white border border-gray-200 text-gray-700 px-3 py-3 rounded-xl font-medium transition-all duration-300 flex items-center justify-center gap-1 text-xs cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        className="mr-2"
+                        checked={compareIds.includes(product.id)}
+                        onChange={(e) => {
+                          setCompareIds((prev) => {
+                            if (e.target.checked) {
+                              const next = [...prev, product.id];
+                              return next.slice(-3);
+                            }
+                            return prev.filter(id => id !== product.id);
+                          });
+                        }}
+                      />
+                      قارن
+                    </label>
+                    {/* زر الشراء خارج Link دائماً! */}
                     <a
                       href={product.externalLink}
                       target="_blank"
@@ -372,7 +425,7 @@ const Products = () => {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
 
@@ -422,6 +475,30 @@ const Products = () => {
             setShowOrderForm(true);
           }}
         />
+      )}
+
+      {compareIds.length > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-white border border-gray-200 rounded-xl shadow-lg p-4 z-50 w-[95%] md:w-[800px]">
+          <div className="flex items-center justify-between mb-3">
+            <div className="font-semibold text-gray-900">مقارنة سريعة</div>
+            <button className="text-sm text-gray-500 hover:text-gray-700" onClick={() => setCompareIds([])}>مسح</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {compareIds.map((id) => {
+              const p = products.find(pr => pr.id === id);
+              if (!p) return null;
+              return (
+                <div key={id} className="border rounded-lg p-3 text-sm">
+                  <div className="font-medium text-gray-900 mb-1">{p.name}</div>
+                  <div className="text-gray-600 mb-1">السعر: ${p.price}</div>
+                  {p.features && p.features.length > 0 && (
+                    <div className="text-gray-600">ميزات: {p.features.slice(0, 3).join('، ')}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       )}
     </section>
   );

@@ -47,7 +47,6 @@ export default function PaymentModal({
     { id: 'manual', name: 'دفع يدوي', icon: '💰', description: 'حوالة بنكية أو نقد' }
   ] as { id: PaymentGateway; name: string; icon: string; description: string }[];
 
-  console.log('💳 Available gateways:', availableGateways.map(g => g.id));
 
   // Initialize payment service when settings are available
   useEffect(() => {
@@ -124,7 +123,6 @@ export default function PaymentModal({
           clientSecret: pg.secretKey,
           mode: pg.mode || 'sandbox',
         });
-        console.log('✅ PayPal initialized successfully');
       } else if (gateway === 'stripe') {
         const apiKey = ('secretKey' in pg ? pg.secretKey : undefined) || ('publishableKey' in pg ? pg.publishableKey : undefined);
         if (!apiKey) {
@@ -138,7 +136,6 @@ export default function PaymentModal({
           apiKey: apiKey,
           mode: pg.mode || 'test',
         });
-        console.log('✅ Stripe initialized successfully');
       } else if (gateway === 'moyasar') {
         const apiKey = ('secretKey' in pg ? pg.secretKey : undefined) || ('publishableKey' in pg ? pg.publishableKey : undefined);
         if (!apiKey) {
@@ -152,7 +149,6 @@ export default function PaymentModal({
           apiKey: apiKey,
           mode: pg.mode || 'test',
         });
-        console.log('✅ Moyasar initialized successfully');
       }
     } catch (initError: any) {
       console.error('Error initializing payment gateway:', initError);
@@ -184,7 +180,6 @@ export default function PaymentModal({
         // Check if payment is simulated (no credentials or API error)
         if (intent.metadata?.simulated || !intent.redirectUrl) {
           // For simulated payments, mark as success immediately (no redirect)
-          console.log('🧪 Simulated payment - processing locally without redirect');
           setStep('processing');
           
           // Simulate payment processing
@@ -223,13 +218,11 @@ export default function PaymentModal({
         
         // Real payment with valid redirect URL
         if (intent.redirectUrl && !intent.metadata?.simulated) {
-          console.log('🔄 Redirecting to payment gateway:', gateway);
           window.location.href = intent.redirectUrl;
           return;
         }
         
         // No redirect URL or simulated - process locally
-        console.log('⚠️ No valid redirect URL or simulated payment - processing locally');
         setError('يرجى التحقق من إعدادات بوابة الدفع في لوحة التحكم');
         setProcessing(false);
       }

@@ -230,7 +230,6 @@ NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your_measurement_id
 import { signInWithGoogle } from '@/lib/customerAuth';
 
 const user = await signInWithGoogle();
-console.log('User signed in:', user);
 ```
 
 ## ⚠️ **ملاحظات مهمة**
@@ -248,6 +247,8 @@ console.log('User signed in:', user);
 4. **اختبار في الإنتاج**
 
 الميزة جاهزة للاستخدام! 🎉
+
+
 
 
 

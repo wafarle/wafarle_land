@@ -23,14 +23,6 @@ export async function POST(request: NextRequest) {
     // import admin from 'firebase-admin';
     // const message = { notification: { title, body: messageBody }, data, token };
     // await admin.messaging().send(message);
-    
-    console.log('📧 Push notification would be sent:', {
-      to,
-      title,
-      body: messageBody,
-      token: token || 'N/A'
-    });
-
     // Simulate notification sending
     // In production, this should use Firebase Admin SDK to send FCM messages
     

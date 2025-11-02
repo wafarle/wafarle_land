@@ -32,8 +32,6 @@ export const BlogTab = () => {
   // Debug: Log posts when they change
   useEffect(() => {
     if (posts.length > 0) {
-      console.log('📝 Blog posts loaded:', posts.length, 'posts');
-      console.log('Posts summary:', posts.map(p => ({ id: p.id, title: p.title, status: p.status })));
     }
   }, [posts]);
   const [categories, setCategories] = useState<BlogCategory[]>([]);

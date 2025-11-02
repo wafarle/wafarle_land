@@ -278,8 +278,6 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
       };
 
       const customerId = await addCustomer(customerData);
-      console.log('✅ Customer added successfully:', customerId);
-      
       // Reload customers list
       const updatedCustomers = await getCustomers();
       setCustomers(updatedCustomers);
