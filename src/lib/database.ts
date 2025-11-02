@@ -24,6 +24,38 @@ import { db, FIREBASE_ENABLED } from '@/lib/firebase';
 
 const USE_FIREBASE = FIREBASE_ENABLED && db;
 
+// ==================== DOMAIN ISOLATION ====================
+
+/**
+ * Get current store domain for data isolation
+ * كل متجر له domain فريد - هذا يضمن عزل البيانات بين المتاجر
+ */
+export const getCurrentDomain = (): string => {
+  // في المتصفح - جلب domain من URL
+  if (typeof window !== 'undefined') {
+    return window.location.hostname;
+  }
+  
+  // في السيرفر (SSR) - جلب من environment variable
+  if (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_STORE_DOMAIN) {
+    return process.env.NEXT_PUBLIC_STORE_DOMAIN;
+  }
+  
+  // Fallback للتطوير المحلي
+  return 'localhost';
+};
+
+/**
+ * Get current store ID from localStorage
+ * معرف إضافي للمتجر (اختياري)
+ */
+export const getCurrentStoreId = (): string | null => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('storeId');
+  }
+  return null;
+};
+
 // Collections - only create if Firebase is enabled
 let productsCollection: any;
 let messagesCollection: any;
@@ -954,7 +986,17 @@ export const getProducts = async (): Promise<Product[]> => {
   }
 
   try {
-    const q = query(productsCollection, orderBy('createdAt', 'desc'));
+    // ✅ جلب domain المتجر الحالي
+    const domain = getCurrentDomain();
+    console.log('🔍 Getting products for domain:', domain);
+    
+    // ✅ فلترة حسب domain فقط!
+    const q = query(
+      productsCollection, 
+      where('domain', '==', domain),
+      orderBy('createdAt', 'desc')
+    );
+    
     const querySnapshot = await getDocs(q);
     const firestoreProducts = querySnapshot.docs.map(doc => {
       const data = doc.data() as any;
@@ -965,6 +1007,7 @@ export const getProducts = async (): Promise<Product[]> => {
       };
     }) as Product[];
     
+    console.log(`✅ Found ${firestoreProducts.length} products for domain: ${domain}`);
     return firestoreProducts;
   } catch (error: any) {
     console.error('Error getting products:', error);
@@ -1005,10 +1048,25 @@ export const addProduct = async (product: Omit<Product, 'id' | 'createdAt'>): Pr
   }
 
   try {
-    const docRef = await addDoc(productsCollection, {
+    // ✅ إضافة domain تلقائياً للمنتج
+    const domain = getCurrentDomain();
+    console.log('➕ Adding product for domain:', domain);
+    
+    const productData: any = {
       ...product,
+      domain, // ✅ إضافة domain!
       createdAt: serverTimestamp(),
+    };
+    
+    // حذف undefined values لتجنب أخطاء Firebase
+    Object.keys(productData).forEach(key => {
+      if (productData[key] === undefined) {
+        delete productData[key];
+      }
     });
+    
+    const docRef = await addDoc(productsCollection, productData);
+    console.log(`✅ Product added with ID: ${docRef.id} for domain: ${domain}`);
     return docRef.id;
   } catch (error) {
     console.error('Error adding product:', error);
@@ -1183,7 +1241,17 @@ export const getOrders = async (): Promise<Order[]> => {
   }
 
   try {
-    const q = query(ordersCollection, orderBy('createdAt', 'desc'));
+    // ✅ جلب domain المتجر الحالي
+    const domain = getCurrentDomain();
+    console.log('🔍 Getting orders for domain:', domain);
+    
+    // ✅ فلترة حسب domain فقط!
+    const q = query(
+      ordersCollection,
+      where('domain', '==', domain),
+      orderBy('createdAt', 'desc')
+    );
+    
     const querySnapshot = await getDocs(q);
     const firestoreOrders = querySnapshot.docs.map(doc => ({
       id: doc.id,
@@ -1195,6 +1263,8 @@ export const getOrders = async (): Promise<Order[]> => {
       invoiceGeneratedAt: (doc.data() as any).invoiceGeneratedAt?.toDate() || undefined,
       invoiceSentAt: (doc.data() as any).invoiceSentAt?.toDate() || undefined,
     })) as Order[];
+    
+    console.log(`✅ Found ${firestoreOrders.length} orders for domain: ${domain}`);
     return firestoreOrders;
   } catch (error: any) {
     console.error('Error getting orders:', error);
@@ -1307,6 +1377,10 @@ export const addOrder = async (order: Omit<Order, 'id' | 'createdAt'>): Promise<
       }
     }
 
+    // ✅ إضافة domain تلقائياً للطلب
+    const domain = getCurrentDomain();
+    console.log('➕ Adding order for domain:', domain);
+    
     // Filter out undefined values to prevent Firebase errors
     const cleanedOrder: Record<string, any> = {};
     Object.entries(order).forEach(([key, value]) => {
@@ -1322,8 +1396,11 @@ export const addOrder = async (order: Omit<Order, 'id' | 'createdAt'>): Promise<
 
     const docRef = await addDoc(ordersCollection, {
       ...cleanedOrder,
+      domain, // ✅ إضافة domain!
       createdAt: serverTimestamp(),
     });
+    
+    console.log(`✅ Order added with ID: ${docRef.id} for domain: ${domain}`);
     // Update product stock after order is created
     if (order.productType === 'physical' && order.productId) {
       const quantityToDeduct = -(order.quantity || 1);
@@ -1615,7 +1692,17 @@ export const getCustomers = async (): Promise<Customer[]> => {
   }
 
   try {
-    const q = query(customersCollection, orderBy('registrationDate', 'desc'));
+    // ✅ جلب domain المتجر الحالي
+    const domain = getCurrentDomain();
+    console.log('🔍 Getting customers for domain:', domain);
+    
+    // ✅ فلترة حسب domain فقط!
+    const q = query(
+      customersCollection,
+      where('domain', '==', domain),
+      orderBy('registrationDate', 'desc')
+    );
+    
     const querySnapshot = await getDocs(q);
     const firestoreCustomers = querySnapshot.docs.map(doc => ({
       id: doc.id,
@@ -1624,6 +1711,8 @@ export const getCustomers = async (): Promise<Customer[]> => {
       lastOrderDate: (doc.data() as any).lastOrderDate?.toDate() || undefined,
       dateOfBirth: (doc.data() as any).dateOfBirth?.toDate() || undefined,
     })) as Customer[];
+    
+    console.log(`✅ Found ${firestoreCustomers.length} customers for domain: ${domain}`);
     return firestoreCustomers;
   } catch (error: any) {
     console.error('Error getting customers:', error);
@@ -1638,8 +1727,13 @@ export const addCustomer = async (customer: Omit<Customer, 'id' | 'registrationD
   }
 
   try {
+    // ✅ إضافة domain تلقائياً للعميل
+    const domain = getCurrentDomain();
+    console.log('➕ Adding customer for domain:', domain);
+    
     const docRef = await addDoc(customersCollection, {
       ...customer,
+      domain, // ✅ إضافة domain!
       registrationDate: serverTimestamp(),
       totalOrders: 0,
       totalSpent: 0,
@@ -1650,6 +1744,8 @@ export const addCustomer = async (customer: Omit<Customer, 'id' | 'registrationD
       totalLoyaltyPointsRedeemed: customer.totalLoyaltyPointsRedeemed || 0,
       loyaltyTier: customer.loyaltyTier || 'bronze',
     });
+    
+    console.log(`✅ Customer added with ID: ${docRef.id} for domain: ${domain}`);
     return docRef.id;
   } catch (error) {
     console.error('Error adding customer:', error);
