@@ -30,3 +30,4 @@ export default function StoreLicenseProtection({ children }: { children: React.R
   return <LicenseGuard>{children}</LicenseGuard>;
 }
 
+

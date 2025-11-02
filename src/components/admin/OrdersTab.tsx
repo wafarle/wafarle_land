@@ -75,11 +75,23 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
       icon: Clock,
       bgColor: 'bg-yellow-50'
     },
+    processing: {
+      label: 'قيد المعالجة',
+      color: 'bg-blue-100 text-blue-800',
+      icon: RefreshCw,
+      bgColor: 'bg-blue-50'
+    },
     confirmed: {
       label: 'مؤكد',
       color: 'bg-blue-100 text-blue-800',
       icon: CheckCircle,
       bgColor: 'bg-blue-50'
+    },
+    shipped: {
+      label: 'تم الشحن',
+      color: 'bg-purple-100 text-purple-800',
+      icon: Truck,
+      bgColor: 'bg-purple-50'
     },
     completed: {
       label: 'مكتمل',
@@ -96,15 +108,20 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
   };
 
   const paymentStatusConfig = {
-    unpaid: {
-      label: 'غير مدفوع',
-      color: 'bg-red-100 text-red-800',
-      icon: AlertCircle
+    pending: {
+      label: 'بانتظار الدفع',
+      color: 'bg-yellow-100 text-yellow-800',
+      icon: Clock
     },
     paid: {
       label: 'مدفوع',
       color: 'bg-green-100 text-green-800',
       icon: CheckCircle
+    },
+    failed: {
+      label: 'فشل الدفع',
+      color: 'bg-red-100 text-red-800',
+      icon: XCircle
     },
     refunded: {
       label: 'مسترد',
@@ -115,12 +132,12 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
 
   // Shipping status configurations
   const shippingStatusConfig = {
-    pending_shipping: {
+    pending: {
       label: 'بانتظار الشحن',
       color: 'bg-gray-100 text-gray-800',
       icon: Clock
     },
-    prepared: {
+    preparing: {
       label: 'تم التحضير',
       color: 'bg-blue-100 text-blue-800',
       icon: Package
@@ -130,7 +147,7 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
       color: 'bg-purple-100 text-purple-800',
       icon: Truck
     },
-    in_transit: {
+    out_for_delivery: {
       label: 'في الطريق',
       color: 'bg-yellow-100 text-yellow-800',
       icon: RefreshCw
@@ -173,8 +190,8 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
     if (searchTerm) {
       filtered = filtered.filter(order =>
         order.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.product?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.id.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
@@ -201,7 +218,7 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
       setOrders(prevOrders => 
         prevOrders.map(order => 
           order.id === orderId 
-            ? { ...order, status: newStatus, confirmedAt: newStatus === 'confirmed' ? new Date() : order.confirmedAt }
+            ? { ...order, status: newStatus, updatedAt: new Date() }
             : order
         )
       );
@@ -242,15 +259,10 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
       // Update local state
       const updatedOrders = orders.map(order => {
         if (order.id === orderId) {
-          const updated: any = { ...order, shippingStatus: newShippingStatus };
-          // إضافة تاريخ الشحن إذا تم الشحن
-          if (newShippingStatus === 'shipped' && !order.shippedAt) {
-            updated.shippedAt = new Date();
-          }
+          const updated = { ...order, shippingStatus: newShippingStatus, updatedAt: new Date() };
           // تحديث حالة الطلب إلى مكتمل عند التسليم
           if (newShippingStatus === 'delivered' && order.status !== 'completed') {
             updated.status = 'completed';
-            updated.deliveredAt = new Date();
           }
           return updated;
         }
@@ -337,7 +349,6 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
 
     try {
       setLoading(true);
-      const hasSubscription = orderToDelete.subscriptionStartDate;
       
       await deleteOrder(orderToDelete.id);
       
@@ -347,11 +358,7 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
       setShowDeleteConfirm(false);
       setOrderToDelete(null);
       
-      if (hasSubscription) {
-        alert('✅ تم حذف الطلب والاشتراك المرتبط به بنجاح');
-      } else {
-        alert('✅ تم حذف الطلب بنجاح');
-      }
+      alert('✅ تم حذف الطلب بنجاح');
     } catch (error) {
       console.error('Error deleting order:', error);
       alert('حدث خطأ في حذف الطلب');
@@ -401,8 +408,8 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                 <div class="invoice-details">
                   <h3>تفاصيل العميل:</h3>
                   <p><strong>الاسم:</strong> ${order.customerName}</p>
-                  <p><strong>البريد الإلكتروني:</strong> ${order.customerEmail}</p>
-                  <p><strong>رقم الهاتف:</strong> ${order.customerPhone}</p>
+                  <p><strong>البريد الإلكتروني:</strong> ${order.email || 'غير متوفر'}</p>
+                  <p><strong>رقم الهاتف:</strong> ${order.phone}</p>
                 </div>
 
                 <table class="invoice-table">
@@ -416,17 +423,17 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                   </thead>
                   <tbody>
                     <tr>
-                      <td>${order.productName}</td>
-                      <td>${order.quantity}</td>
-                      <td>${order.productPrice} ر.س</td>
-                      <td>${order.totalAmount} ر.س</td>
+                      <td>${order.product?.name || 'غير متوفر'}</td>
+                      <td>${order.product?.quantity || 1}</td>
+                      <td>${order.product?.price || 0} ر.س</td>
+                      <td>${order.totalPrice} ر.س</td>
                     </tr>
                   </tbody>
                 </table>
 
                 <div class="total">
-                  <p>المجموع الكلي: ${order.totalAmount} ر.س</p>
-                  <p>حالة الدفع: ${paymentStatusConfig[order.paymentStatus].label}</p>
+                  <p>المجموع الكلي: ${order.totalPrice} ر.س</p>
+                  <p>حالة الدفع: ${order.paymentStatus === 'paid' ? 'مدفوع' : order.paymentStatus === 'refunded' ? 'مسترد' : 'غير مدفوع'}</p>
                   <p>طريقة الدفع: ${order.paymentMethod === 'cash' ? 'نقدي' : 
                                    order.paymentMethod === 'card' ? 'بطاقة ائتمان' :
                                    order.paymentMethod === 'bank_transfer' ? 'حوالة بنكية' : 'محفظة رقمية'}</p>
@@ -462,10 +469,10 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
     const pending = orders.filter(order => order.status === 'pending').length;
     const confirmed = orders.filter(order => order.status === 'confirmed').length;
     const completed = orders.filter(order => order.status === 'completed').length;
-    const unpaid = orders.filter(order => order.paymentStatus === 'unpaid').length;
+    const unpaid = orders.filter(order => order.paymentStatus === 'pending' || !order.paymentStatus).length;
     const totalRevenue = orders
       .filter(order => order.paymentStatus === 'paid')
-      .reduce((sum, order) => sum + order.totalAmount, 0);
+      .reduce((sum, order) => sum + order.totalPrice, 0);
 
     return { pending, confirmed, completed, unpaid, totalRevenue };
   };
@@ -620,13 +627,12 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredOrders.map((order) => {
                 const StatusIcon = statusConfig[order.status].icon;
-                const PaymentIcon = paymentStatusConfig[order.paymentStatus].icon;
+                const PaymentIcon = paymentStatusConfig[order.paymentStatus || 'pending'].icon;
                 
                 // التحقق من نوع المنتج
-                const product = products.find(p => p.id === order.productId);
-                const productType = product?.productType || order.productType;
-                const isPhysicalProduct = productType === 'physical' && product?.requiresShipping;
-                const currentShippingStatus = order.shippingStatus || 'pending_shipping';
+                const product = products.find(p => p.id === order.product?.id);
+                const isPhysicalProduct = order.shippingStatus !== undefined;
+                const currentShippingStatus = order.shippingStatus || 'pending';
                 const ShippingIcon = shippingStatusConfig[currentShippingStatus]?.icon || Clock;
                 
                 return (
@@ -634,36 +640,22 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-gray-900">#{order.id.slice(-8)}</span>
-                        {order.subscriptionStartDate && (
-                          <div className="flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full border border-green-200"
-                               title="هذا الطلب له اشتراك مرتبط - حذفه سيحذف الاشتراك أيضاً">
-                            <Package className="w-3 h-3" />
-                            <span>مع اشتراك</span>
-                          </div>
-                        )}
-                        {order.invoiceNumber && (
-                          <div className="flex items-center gap-1 px-2 py-1 bg-indigo-100 text-indigo-800 text-xs rounded-full border border-indigo-200"
-                               title={`فاتورة رقم: ${order.invoiceNumber}`}>
-                            <Receipt className="w-3 h-3" />
-                            <span className="font-mono">{order.invoiceNumber}</span>
-                          </div>
-                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-gray-900">{order.customerName}</div>
-                        <div className="text-sm text-gray-500">{order.customerEmail}</div>
+                        <div className="text-sm text-gray-500">{order.email || 'غير متوفر'}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{order.productName}</div>
-                        <div className="text-sm text-gray-500">الكمية: {order.quantity}</div>
+                        <div className="text-sm font-medium text-gray-900">{order.product?.name || 'غير متوفر'}</div>
+                        <div className="text-sm text-gray-500">الكمية: {order.product?.quantity || 1}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      ${order.totalAmount}
+                      ${order.totalPrice}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig[order.status].color}`}>
@@ -672,9 +664,9 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${paymentStatusConfig[order.paymentStatus].color}`}>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${paymentStatusConfig[order.paymentStatus || 'pending'].color}`}>
                         <PaymentIcon className="w-4 h-4 mr-1" />
-                        {paymentStatusConfig[order.paymentStatus].label}
+                        {paymentStatusConfig[order.paymentStatus || 'pending'].label}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -726,7 +718,7 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                           )}
 
                           {/* Payment Action Button */}
-                          {order.paymentStatus === 'unpaid' && (
+                          {(order.paymentStatus === 'pending' || !order.paymentStatus) && (
                             <button
                               onClick={() => handlePaymentStatusUpdate(order.id, 'paid')}
                               className="inline-flex items-center px-2 py-1 bg-green-100 text-green-700 rounded-md hover:bg-green-200 transition-colors text-xs font-medium"
@@ -738,7 +730,7 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                           )}
 
                           {/* Convert to Subscription Button */}
-                          {!order.subscriptionStartDate && order.status === 'completed' && order.paymentStatus === 'paid' && (
+                          {false && order.status === 'completed' && order.paymentStatus === 'paid' && (
                             <button
                               onClick={() => handleConvertToSubscription(order.id)}
                               disabled={convertingToSubscription === order.id}
@@ -766,13 +758,9 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                           <button
                             onClick={() => handleGenerateInvoice(order.id)}
                             className="inline-flex items-center p-1.5 bg-indigo-100 text-indigo-700 rounded-md hover:bg-indigo-200 transition-colors"
-                            title={order.invoiceNumber ? `تحميل الفاتورة ${order.invoiceNumber}` : 'توليد وتحميل الفاتورة PDF'}
+                            title="توليد وتحميل الفاتورة PDF"
                           >
-                            {order.invoiceNumber ? (
-                              <FileText className="w-3 h-3" />
-                            ) : (
-                              <Receipt className="w-3 h-3" />
-                            )}
+                            <Receipt className="w-3 h-3" />
                           </button>
 
                           {/* Print Invoice Button */}
@@ -841,7 +829,7 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                                   )}
 
                                   {/* Convert to Subscription Action */}
-                                  {!order.subscriptionStartDate && order.status === 'completed' && order.paymentStatus === 'paid' && (
+                                  {false && order.status === 'completed' && order.paymentStatus === 'paid' && (
                                     <button
                                       onClick={() => handleConvertToSubscription(order.id)}
                                       disabled={convertingToSubscription === order.id}
@@ -870,7 +858,7 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                                     className="w-full px-4 py-2 text-right text-sm text-indigo-600 hover:bg-indigo-50 flex items-center transition-colors"
                                   >
                                     <FileText className="w-4 h-4 ml-2" />
-                                    {order.invoiceNumber ? `تحميل الفاتورة ${order.invoiceNumber}` : 'توليد الفاتورة PDF'}
+                                    توليد الفاتورة PDF
                                   </button>
 
                                   <button
@@ -879,10 +867,9 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                                       setActionMenuOrder(null);
                                     }}
                                     className="w-full px-4 py-2 text-right text-sm text-blue-600 hover:bg-blue-50 flex items-center transition-colors"
-                                    disabled={!order.invoiceNumber}
                                   >
                                     <Send className="w-4 h-4 ml-2" />
-                                    {order.invoiceSentAt ? 'إعادة إرسال الفاتورة' : 'إرسال الفاتورة بالبريد'}
+                                    إرسال الفاتورة بالبريد
                                   </button>
 
                                   {/* Separator */}
@@ -963,11 +950,11 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                       </div>
                       <div>
                         <span className="text-gray-500">البريد الإلكتروني:</span>
-                        <span className="text-gray-900 mr-2">{selectedOrder.customerEmail}</span>
+                        <span className="text-gray-900 mr-2">{selectedOrder.email || 'غير متوفر'}</span>
                       </div>
                       <div>
                         <span className="text-gray-500">رقم الهاتف:</span>
-                        <span className="text-gray-900 mr-2">{selectedOrder.customerPhone}</span>
+                        <span className="text-gray-900 mr-2">{selectedOrder.phone}</span>
                       </div>
                     </div>
                   </div>
@@ -981,69 +968,24 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-gray-500">اسم المنتج:</span>
-                        <span className="text-gray-900 mr-2">{selectedOrder.productName}</span>
+                        <span className="text-gray-900 mr-2">{selectedOrder.product?.name || 'غير متوفر'}</span>
                       </div>
                       <div>
                         <span className="text-gray-500">السعر:</span>
-                        <span className="text-gray-900 mr-2">${selectedOrder.productPrice}</span>
+                        <span className="text-gray-900 mr-2">${selectedOrder.product?.price || 0}</span>
                       </div>
                       <div>
                         <span className="text-gray-500">الكمية:</span>
-                        <span className="text-gray-900 mr-2">{selectedOrder.quantity}</span>
+                        <span className="text-gray-900 mr-2">{selectedOrder.product?.quantity || 1}</span>
                       </div>
                       <div>
                         <span className="text-gray-500">المجموع:</span>
-                        <span className="text-gray-900 mr-2 font-medium">${selectedOrder.totalAmount}</span>
+                        <span className="text-gray-900 mr-2 font-medium">${selectedOrder.totalPrice}</span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Invoice Information */}
-                  {(selectedOrder.invoiceNumber || selectedOrder.invoiceGeneratedAt) && (
-                    <div className="bg-indigo-50 p-4 rounded-lg border border-indigo-200">
-                      <h4 className="font-medium text-gray-900 mb-3 flex items-center">
-                        <Receipt className="w-4 h-4 ml-2 text-indigo-600" />
-                        معلومات الفاتورة
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        {selectedOrder.invoiceNumber && (
-                          <div>
-                            <span className="text-gray-500">رقم الفاتورة:</span>
-                            <span className="text-gray-900 mr-2 font-mono font-bold">{selectedOrder.invoiceNumber}</span>
-                          </div>
-                        )}
-                        {selectedOrder.invoiceGeneratedAt && (
-                          <div>
-                            <span className="text-gray-500">تاريخ التوليد:</span>
-                            <span className="text-gray-900 mr-2">{formatDate(selectedOrder.invoiceGeneratedAt)}</span>
-                          </div>
-                        )}
-                        {selectedOrder.invoiceSentAt && (
-                          <div>
-                            <span className="text-gray-500">تاريخ الإرسال:</span>
-                            <span className="text-gray-900 mr-2">{formatDate(selectedOrder.invoiceSentAt)}</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="mt-4 flex gap-2">
-                        <button
-                          onClick={() => handleGenerateInvoice(selectedOrder.id)}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                        >
-                          <FileText className="w-4 h-4" />
-                          تحميل PDF
-                        </button>
-                        <button
-                          onClick={() => handleSendInvoiceEmail(selectedOrder.id)}
-                          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                          disabled={!selectedOrder.invoiceNumber}
-                        >
-                          <Send className="w-4 h-4" />
-                          {selectedOrder.invoiceSentAt ? 'إعادة الإرسال' : 'إرسال بالبريد'}
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  {/* Invoice Information - Disabled: Properties not in Order type */}
 
                   {/* Order Status */}
                   <div className="bg-yellow-50 p-4 rounded-lg">
@@ -1060,8 +1002,8 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                       </div>
                       <div>
                         <span className="text-gray-500">حالة الدفع:</span>
-                        <span className={`mr-2 px-2 py-1 rounded text-xs ${paymentStatusConfig[selectedOrder.paymentStatus].color}`}>
-                          {paymentStatusConfig[selectedOrder.paymentStatus].label}
+                        <span className={`mr-2 px-2 py-1 rounded text-xs ${paymentStatusConfig[selectedOrder.paymentStatus || 'pending'].color}`}>
+                          {paymentStatusConfig[selectedOrder.paymentStatus || 'pending'].label}
                         </span>
                       </div>
                       <div>
@@ -1077,10 +1019,9 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
 
                   {/* Shipping Information - Only for Physical Products */}
                   {(() => {
-                    const product = products.find(p => p.id === selectedOrder.productId);
-                    const productType = product?.productType || selectedOrder.productType;
-                    const isPhysicalProduct = productType === 'physical' && product?.requiresShipping;
-                    const currentShippingStatus = selectedOrder.shippingStatus || 'pending_shipping';
+                    const product = products.find(p => p.id === selectedOrder.product?.id);
+                    const isPhysicalProduct = selectedOrder.shippingStatus !== undefined;
+                    const currentShippingStatus = selectedOrder.shippingStatus || 'pending';
                     
                     if (isPhysicalProduct) {
                       return (
@@ -1114,25 +1055,19 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                                 </select>
                               </div>
                             </div>
-                            {selectedOrder.shippingAddress && (
+                            {selectedOrder.address && (
                               <div>
                                 <span className="text-gray-500 text-sm flex items-center gap-1 mb-1">
                                   <MapPin className="w-3 h-3" />
                                   عنوان الشحن:
                                 </span>
-                                <p className="text-gray-900 text-sm bg-white p-2 rounded border">{selectedOrder.shippingAddress}</p>
+                                <p className="text-gray-900 text-sm bg-white p-2 rounded border">{selectedOrder.address}</p>
                               </div>
                             )}
-                            {selectedOrder.shippingTrackingNumber && (
+                            {selectedOrder.trackingNumber && (
                               <div>
                                 <span className="text-gray-500 text-sm">رقم التتبع:</span>
-                                <span className="text-gray-900 mr-2 font-mono">{selectedOrder.shippingTrackingNumber}</span>
-                              </div>
-                            )}
-                            {selectedOrder.shippedAt && (
-                              <div>
-                                <span className="text-gray-500 text-sm">تاريخ الشحن:</span>
-                                <span className="text-gray-900 mr-2">{formatDate(selectedOrder.shippedAt)}</span>
+                                <span className="text-gray-900 mr-2 font-mono">{selectedOrder.trackingNumber}</span>
                               </div>
                             )}
                           </div>
@@ -1153,18 +1088,6 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                         <span className="text-gray-500">تاريخ الطلب:</span>
                         <span className="text-gray-900 mr-2">{formatDate(selectedOrder.createdAt)}</span>
                       </div>
-                      {selectedOrder.confirmedAt && (
-                        <div>
-                          <span className="text-gray-500">تاريخ التأكيد:</span>
-                          <span className="text-gray-900 mr-2">{formatDate(selectedOrder.confirmedAt)}</span>
-                        </div>
-                      )}
-                      {selectedOrder.deliveredAt && (
-                        <div>
-                          <span className="text-gray-500">تاريخ الإكمال:</span>
-                          <span className="text-gray-900 mr-2">{formatDate(selectedOrder.deliveredAt)}</span>
-                        </div>
-                      )}
                     </div>
                   </div>
 
@@ -1189,35 +1112,7 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                       طباعة الفاتورة
                     </Button>
                     
-                    {/* Show create subscription button only for confirmed & paid orders without subscription */}
-                    {selectedOrder.status === 'confirmed' && 
-                     selectedOrder.paymentStatus === 'paid' && 
-                     !selectedOrder.subscriptionStartDate && (
-                      <Button
-                        variant="success"
-                        size="md"
-                        onClick={() => handleCreateSubscription(selectedOrder.id)}
-                        icon={<Package className="w-4 h-4" />}
-                        loading={loading}
-                      >
-                        إنشاء اشتراك
-                      </Button>
-                    )}
-                    
-                    {/* Show subscription status if exists */}
-                    {selectedOrder.subscriptionStartDate && (
-                      <div className="flex items-center gap-2 px-3 py-2 bg-green-100 text-green-800 rounded-lg border border-green-200">
-                        <CheckCircle className="w-4 h-4" />
-                        <span className="text-sm font-medium">
-                          اشتراك نشط
-                          {selectedOrder.subscriptionEndDate && (
-                            <span className="text-xs block text-green-600">
-                              ينتهي: {formatDate(selectedOrder.subscriptionEndDate)}
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                    )}
+                    {/* Subscription features disabled: Properties not in Order type */}
                   </div>
                   
                   <Button
@@ -1260,10 +1155,10 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                       <strong>العميل:</strong> {orderToDelete.customerName}
                     </p>
                     <p>
-                      <strong>المنتج:</strong> {orderToDelete.productName}
+                      <strong>المنتج:</strong> {orderToDelete.product?.name || 'غير متوفر'}
                     </p>
                     
-                    {orderToDelete.subscriptionStartDate && (
+                    {false && (
                       <div className="mt-3 p-3 bg-orange-100 border border-orange-200 rounded">
                         <div className="flex items-center gap-2 text-orange-800">
                           <Package className="w-4 h-4" />
@@ -1301,7 +1196,7 @@ const OrdersTab = ({ onOrdersCountChange }: OrdersTabProps) => {
                 loading={loading}
                 icon={<Trash2 className="w-4 h-4" />}
               >
-                {orderToDelete.subscriptionStartDate ? 'حذف الطلب والاشتراك' : 'حذف الطلب'}
+                حذف الطلب
               </Button>
             </div>
           </div>

@@ -60,15 +60,18 @@ export const getLicenses = async (): Promise<License[]> => {
   try {
     const q = query(licensesCollection, orderBy('createdAt', 'desc'));
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-      updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-      purchaseDate: doc.data().purchaseDate?.toDate?.() || new Date(),
-      expiryDate: doc.data().expiryDate?.toDate?.() || null,
-      lastCheckDate: doc.data().lastCheckDate?.toDate?.() || null,
-    })) as License[];
+    return querySnapshot.docs.map((doc) => {
+      const data = doc.data() as any;
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.() || new Date(),
+        updatedAt: data.updatedAt?.toDate?.() || new Date(),
+        purchaseDate: data.purchaseDate?.toDate?.() || new Date(),
+        expiryDate: data.expiryDate?.toDate?.() || null,
+        lastCheckDate: data.lastCheckDate?.toDate?.() || null,
+      } as License;
+    });
   } catch (error) {
     console.error('Error getting licenses:', error);
     throw error;
@@ -90,12 +93,12 @@ export const getLicenseById = async (id: string): Promise<License | null> => {
     if (docSnap.exists()) {
       return {
         id: docSnap.id,
-        ...docSnap.data(),
-        createdAt: docSnap.data().createdAt?.toDate?.() || new Date(),
-        updatedAt: docSnap.data().updatedAt?.toDate?.() || new Date(),
-        purchaseDate: docSnap.data().purchaseDate?.toDate?.() || new Date(),
-        expiryDate: docSnap.data().expiryDate?.toDate?.() || null,
-        lastCheckDate: docSnap.data().lastCheckDate?.toDate?.() || null,
+        ...(docSnap.data() as any),
+        createdAt: (docSnap.data() as any).createdAt?.toDate?.() || new Date(),
+        updatedAt: (docSnap.data() as any).updatedAt?.toDate?.() || new Date(),
+        purchaseDate: (docSnap.data() as any).purchaseDate?.toDate?.() || new Date(),
+        expiryDate: (docSnap.data() as any).expiryDate?.toDate?.() || null,
+        lastCheckDate: (docSnap.data() as any).lastCheckDate?.toDate?.() || null,
       } as License;
     }
     return null;
@@ -121,12 +124,12 @@ export const getLicenseByKey = async (licenseKey: string): Promise<License | nul
       const docSnap = querySnapshot.docs[0];
       return {
         id: docSnap.id,
-        ...docSnap.data(),
-        createdAt: docSnap.data().createdAt?.toDate?.() || new Date(),
-        updatedAt: docSnap.data().updatedAt?.toDate?.() || new Date(),
-        purchaseDate: docSnap.data().purchaseDate?.toDate?.() || new Date(),
-        expiryDate: docSnap.data().expiryDate?.toDate?.() || null,
-        lastCheckDate: docSnap.data().lastCheckDate?.toDate?.() || null,
+        ...(docSnap.data() as any),
+        createdAt: (docSnap.data() as any).createdAt?.toDate?.() || new Date(),
+        updatedAt: (docSnap.data() as any).updatedAt?.toDate?.() || new Date(),
+        purchaseDate: (docSnap.data() as any).purchaseDate?.toDate?.() || new Date(),
+        expiryDate: (docSnap.data() as any).expiryDate?.toDate?.() || null,
+        lastCheckDate: (docSnap.data() as any).lastCheckDate?.toDate?.() || null,
       } as License;
     }
     return null;
@@ -153,12 +156,12 @@ export const getLicenseByDomain = async (domain: string): Promise<License | null
       const docSnap = querySnapshot.docs[0];
       return {
         id: docSnap.id,
-        ...docSnap.data(),
-        createdAt: docSnap.data().createdAt?.toDate?.() || new Date(),
-        updatedAt: docSnap.data().updatedAt?.toDate?.() || new Date(),
-        purchaseDate: docSnap.data().purchaseDate?.toDate?.() || new Date(),
-        expiryDate: docSnap.data().expiryDate?.toDate?.() || null,
-        lastCheckDate: docSnap.data().lastCheckDate?.toDate?.() || null,
+        ...(docSnap.data() as any),
+        createdAt: (docSnap.data() as any).createdAt?.toDate?.() || new Date(),
+        updatedAt: (docSnap.data() as any).updatedAt?.toDate?.() || new Date(),
+        purchaseDate: (docSnap.data() as any).purchaseDate?.toDate?.() || new Date(),
+        expiryDate: (docSnap.data() as any).expiryDate?.toDate?.() || null,
+        lastCheckDate: (docSnap.data() as any).lastCheckDate?.toDate?.() || null,
       } as License;
     }
     
@@ -170,12 +173,12 @@ export const getLicenseByDomain = async (domain: string): Promise<License | null
       const docSnap = querySnapshot.docs[0];
       return {
         id: docSnap.id,
-        ...docSnap.data(),
-        createdAt: docSnap.data().createdAt?.toDate?.() || new Date(),
-        updatedAt: docSnap.data().updatedAt?.toDate?.() || new Date(),
-        purchaseDate: docSnap.data().purchaseDate?.toDate?.() || new Date(),
-        expiryDate: docSnap.data().expiryDate?.toDate?.() || null,
-        lastCheckDate: docSnap.data().lastCheckDate?.toDate?.() || null,
+        ...(docSnap.data() as any),
+        createdAt: (docSnap.data() as any).createdAt?.toDate?.() || new Date(),
+        updatedAt: (docSnap.data() as any).updatedAt?.toDate?.() || new Date(),
+        purchaseDate: (docSnap.data() as any).purchaseDate?.toDate?.() || new Date(),
+        expiryDate: (docSnap.data() as any).expiryDate?.toDate?.() || null,
+        lastCheckDate: (docSnap.data() as any).lastCheckDate?.toDate?.() || null,
       } as License;
     }
     
@@ -461,13 +464,16 @@ export const getVersions = async (): Promise<SystemVersion[]> => {
   try {
     const q = query(versionsCollection, orderBy('releaseDate', 'desc'));
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      releaseDate: doc.data().releaseDate?.toDate?.() || new Date(),
-      createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-      updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-    })) as SystemVersion[];
+    return querySnapshot.docs.map((doc) => {
+      const data = doc.data() as any;
+      return {
+        id: doc.id,
+        ...data,
+        releaseDate: data.releaseDate?.toDate?.() || new Date(),
+        createdAt: data.createdAt?.toDate?.() || new Date(),
+        updatedAt: data.updatedAt?.toDate?.() || new Date(),
+      } as SystemVersion;
+    });
   } catch (error) {
     console.error('Error getting versions:', error);
     throw error;
@@ -495,10 +501,10 @@ export const getLatestVersion = async (): Promise<SystemVersion | null> => {
       const docSnap = querySnapshot.docs[0];
       return {
         id: docSnap.id,
-        ...docSnap.data(),
-        releaseDate: docSnap.data().releaseDate?.toDate?.() || new Date(),
-        createdAt: docSnap.data().createdAt?.toDate?.() || new Date(),
-        updatedAt: docSnap.data().updatedAt?.toDate?.() || new Date(),
+        ...(docSnap.data() as any),
+        releaseDate: (docSnap.data() as any).releaseDate?.toDate?.() || new Date(),
+        createdAt: (docSnap.data() as any).createdAt?.toDate?.() || new Date(),
+        updatedAt: (docSnap.data() as any).updatedAt?.toDate?.() || new Date(),
       } as SystemVersion;
     }
     return null;
@@ -663,12 +669,15 @@ export const getUpdateNotifications = async (): Promise<UpdateNotification[]> =>
       orderBy('createdAt', 'desc')
     );
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-      expiresAt: doc.data().expiresAt?.toDate?.() || null,
-    })) as UpdateNotification[];
+    return querySnapshot.docs.map((doc) => {
+      const data = doc.data() as any;
+      return {
+        id: doc.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.() || new Date(),
+        expiresAt: data.expiresAt?.toDate?.() || null,
+      } as UpdateNotification;
+    });
   } catch (error) {
     console.error('Error getting update notifications:', error);
     throw error;
@@ -753,12 +762,12 @@ export const subscribeToLicenses = (callback: (licenses: License[]) => void) => 
   return onSnapshot(q, (snapshot) => {
     const licenses = snapshot.docs.map((doc) => ({
       id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-      updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
-      purchaseDate: doc.data().purchaseDate?.toDate?.() || new Date(),
-      expiryDate: doc.data().expiryDate?.toDate?.() || null,
-      lastCheckDate: doc.data().lastCheckDate?.toDate?.() || null,
+      ...(doc.data() as any),
+      createdAt: (doc.data() as any).createdAt?.toDate?.() || new Date(),
+      updatedAt: (doc.data() as any).updatedAt?.toDate?.() || new Date(),
+      purchaseDate: (doc.data() as any).purchaseDate?.toDate?.() || new Date(),
+      expiryDate: (doc.data() as any).expiryDate?.toDate?.() || null,
+      lastCheckDate: (doc.data() as any).lastCheckDate?.toDate?.() || null,
     })) as License[];
     
     callback(licenses);
@@ -778,10 +787,10 @@ export const subscribeToVersions = (callback: (versions: SystemVersion[]) => voi
   return onSnapshot(q, (snapshot) => {
     const versions = snapshot.docs.map((doc) => ({
       id: doc.id,
-      ...doc.data(),
-      releaseDate: doc.data().releaseDate?.toDate?.() || new Date(),
-      createdAt: doc.data().createdAt?.toDate?.() || new Date(),
-      updatedAt: doc.data().updatedAt?.toDate?.() || new Date(),
+      ...(doc.data() as any),
+      releaseDate: (doc.data() as any).releaseDate?.toDate?.() || new Date(),
+      createdAt: (doc.data() as any).createdAt?.toDate?.() || new Date(),
+      updatedAt: (doc.data() as any).updatedAt?.toDate?.() || new Date(),
     })) as SystemVersion[];
     
     callback(versions);

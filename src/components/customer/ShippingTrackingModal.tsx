@@ -206,15 +206,15 @@ const ShippingTrackingModal = ({ isOpen, onClose, order }: ShippingTrackingModal
                 {/* Shipping Details */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Shipping Address */}
-                  {order.shippingAddress && (
+                  {order.address && (
                     <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
                       <div className="flex items-start gap-3">
                         <MapPin className="w-5 h-5 text-blue-600 mt-0.5" />
                         <div className="flex-1">
                           <p className="text-sm font-medium text-blue-900 mb-1">عنوان الشحن</p>
-                          <p className="text-sm text-blue-700">{order.shippingAddress}</p>
+                          <p className="text-sm text-blue-700">{order.address}</p>
                           <button
-                            onClick={() => copyToClipboard(order.shippingAddress!)}
+                            onClick={() => copyToClipboard(order.address!)}
                             className="mt-2 text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
                           >
                             <Copy className="w-3 h-3" />
@@ -226,15 +226,15 @@ const ShippingTrackingModal = ({ isOpen, onClose, order }: ShippingTrackingModal
                   )}
 
                   {/* Tracking Number */}
-                  {order.shippingTrackingNumber && (
+                  {order.trackingNumber && (
                     <div className="bg-purple-50 rounded-xl p-4 border border-purple-100">
                       <div className="flex items-start gap-3">
                         <Package className="w-5 h-5 text-purple-600 mt-0.5" />
                         <div className="flex-1">
                           <p className="text-sm font-medium text-purple-900 mb-1">رقم التتبع</p>
-                          <p className="text-sm font-mono text-purple-700 mb-2">{order.shippingTrackingNumber}</p>
+                          <p className="text-sm font-mono text-purple-700 mb-2">{order.trackingNumber}</p>
                           <button
-                            onClick={() => copyToClipboard(order.shippingTrackingNumber!)}
+                            onClick={() => copyToClipboard(order.trackingNumber!)}
                             className="text-xs text-purple-600 hover:text-purple-700 flex items-center gap-1"
                           >
                             <Copy className="w-3 h-3" />
@@ -275,8 +275,8 @@ const ShippingTrackingModal = ({ isOpen, onClose, order }: ShippingTrackingModal
                   <div className="flex items-center gap-4">
                     <Package className="w-8 h-8 text-gray-600" />
                     <div className="flex-1">
-                      <p className="font-medium text-gray-900">{order.productName}</p>
-                      <p className="text-sm text-gray-600">الكمية: {order.quantity}</p>
+                      <p className="font-medium text-gray-900">{order.product?.name}</p>
+                      <p className="text-sm text-gray-600">الكمية: {order.product?.quantity || 1}</p>
                     </div>
                   </div>
                 </div>

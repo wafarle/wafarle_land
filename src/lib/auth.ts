@@ -68,3 +68,4 @@ export const isAdmin = (user: User | null): boolean => {
   return user.email === 'admin@wafarle.com';
 };
 
+

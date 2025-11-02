@@ -202,31 +202,35 @@ const mockProducts: Product[] = [
     description: 'هذا منتج وهمي بنفس المعرّف العشوائي لاختبار الربط.',
     price: 99.99,
     image: '/api/placeholder/300/200',
+    externalLink: '#',
     category: 'test',
     discount: '10%',
     rating: 4.5,
     averageRating: 4.5,
     reviewsCount: 2,
     features: ['اختبار ID Firestore', 'ربط صحيح', 'بيانات جاهزة'],
+    createdAt: new Date(),
   },
 ];
 // بيانات تجريبية للموظفين - mock
 const mockStaffUsers: StaffUser[] = [
   {
-    uid: 'super-1',
+    id: 'super-1',
     email: 'super@domain.com',
     name: 'Super Admin',
     role: 'super_admin',
+    permissions: ['all'],
     avatar: '',
     isActive: true,
     createdAt: new Date(),
     updatedAt: new Date(),
   },
   {
-    uid: 'admin-1',
+    id: 'admin-1',
     email: 'admin@domain.com',
     name: 'مدير النظام',
     role: 'admin',
+    permissions: ['manage_orders', 'manage_products', 'manage_customers'],
     avatar: '',
     isActive: true,
     createdAt: new Date(),
@@ -240,14 +244,16 @@ const mockOrders: Order[] = [
     id: '1',
     customerName: 'أحمد محمد',
     customerEmail: 'ahmed@example.com',
+    phone: '+966501234567',
     customerPhone: '+966501234567',
     productId: '1',
     productName: 'Netflix Premium',
     productPrice: 12.99,
     quantity: 1,
     totalAmount: 12.99,
+    totalPrice: 12.99,
     status: 'pending',
-    paymentStatus: 'unpaid',
+    paymentStatus: 'pending',
     paymentMethod: 'card',
     notes: 'طلب جديد، بانتظار التأكيد',
     createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
@@ -256,12 +262,14 @@ const mockOrders: Order[] = [
     id: '2',
     customerName: 'فاطمة علي',
     customerEmail: 'fatima@example.com',
+    phone: '+966507654321',
     customerPhone: '+966507654321',
     productId: '2',
     productName: 'Spotify Premium',
     productPrice: 9.99,
     quantity: 1,
     totalAmount: 9.99,
+    totalPrice: 9.99,
     status: 'confirmed',
     paymentStatus: 'paid',
     paymentMethod: 'bank_transfer',
@@ -273,12 +281,14 @@ const mockOrders: Order[] = [
     id: '3',
     customerName: 'محمد سالم',
     customerEmail: 'mohammed@example.com',
+    phone: '+966509876543',
     customerPhone: '+966509876543',
     productId: '3',
     productName: 'Shahid VIP',
     productPrice: 7.99,
     quantity: 2,
     totalAmount: 15.98,
+    totalPrice: 15.98,
     status: 'completed',
     paymentStatus: 'paid',
     paymentMethod: 'digital_wallet',
@@ -305,6 +315,7 @@ const mockCustomers: Customer[] = [
     totalOrders: 15,
     totalSpent: 485.75,
     averageOrderValue: 32.38,
+    createdAt: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000), // 6 months ago
     lastOrderDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
     registrationDate: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000), // 6 months ago
     notes: 'عميل مميز، يفضل الدفع بالبطاقة الائتمانية',
@@ -325,6 +336,7 @@ const mockCustomers: Customer[] = [
     totalOrders: 8,
     totalSpent: 156.90,
     averageOrderValue: 19.61,
+    createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000), // 3 months ago
     lastOrderDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
     registrationDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000), // 3 months ago
     notes: 'تفضل الاشتراكات الشهرية',
@@ -345,6 +357,7 @@ const mockCustomers: Customer[] = [
     totalOrders: 3,
     totalSpent: 67.45,
     averageOrderValue: 22.48,
+    createdAt: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000), // 4 months ago
     lastOrderDate: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000), // 45 days ago
     registrationDate: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000), // 4 months ago
     notes: 'لم يقم بطلبات حديثة',
@@ -365,6 +378,7 @@ const mockCustomers: Customer[] = [
     totalOrders: 25,
     totalSpent: 892.30,
     averageOrderValue: 35.69,
+    createdAt: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000), // 1 year ago
     lastOrderDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
     registrationDate: new Date(Date.now() - 365 * 24 * 60 * 60 * 1000), // 1 year ago
     notes: 'أفضل عميل لدينا، طلبات منتظمة',
@@ -385,6 +399,7 @@ const mockCustomers: Customer[] = [
     totalOrders: 2,
     totalSpent: 25.98,
     averageOrderValue: 12.99,
+    createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 1 month ago
     lastOrderDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000), // 60 days ago
     registrationDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), // 1 month ago
     notes: 'حُجب لمشاكل في الدفع',
@@ -481,7 +496,7 @@ const mockSubscriptions: Subscription[] = [
     durationMonths: 1,
     status: 'expired',
     autoRenewal: false,
-    paymentStatus: 'unpaid',
+    paymentStatus: 'pending',
     remainingDays: -5,
     usageCount: 87,
     maxUsage: 9999,
@@ -1284,7 +1299,7 @@ export const addOrder = async (order: Omit<Order, 'id' | 'createdAt'>): Promise<
 
   try {
     // Check stock availability for physical products
-    if (order.productType === 'physical') {
+    if (order.productType === 'physical' && order.productId) {
       const stockCheck = await checkProductStock(order.productId, order.quantity || 1);
       
       if (!stockCheck.available) {
@@ -1310,7 +1325,7 @@ export const addOrder = async (order: Omit<Order, 'id' | 'createdAt'>): Promise<
       createdAt: serverTimestamp(),
     });
     // Update product stock after order is created
-    if (order.productType === 'physical') {
+    if (order.productType === 'physical' && order.productId) {
       const quantityToDeduct = -(order.quantity || 1);
       await updateProductStock(order.productId, quantityToDeduct);
     }
@@ -1322,7 +1337,7 @@ export const addOrder = async (order: Omit<Order, 'id' | 'createdAt'>): Promise<
       data: {
         orderId: docRef.id,
         type: 'new_order',
-        customerEmail: order.customerEmail,
+        customerEmail: order.customerEmail || order.email || '',
       },
     });
     
@@ -1406,8 +1421,8 @@ export const updateOrder = async (id: string, updates: Partial<Order>): Promise<
       };
 
       const message = statusMessages[updates.status];
-      if (message) {
-        await sendNotificationToCustomer(currentOrder.customerEmail, {
+      if (message && (currentOrder.customerEmail || currentOrder.email)) {
+        await sendNotificationToCustomer(currentOrder.customerEmail || currentOrder.email!, {
           title: message.title,
           body: message.body,
           data: {
@@ -1433,8 +1448,8 @@ export const updateOrder = async (id: string, updates: Partial<Order>): Promise<
       };
 
       const message = shippingMessages[updates.shippingStatus];
-      if (message) {
-        await sendNotificationToCustomer(currentOrder.customerEmail, {
+      if (message && (currentOrder.customerEmail || currentOrder.email)) {
+        await sendNotificationToCustomer(currentOrder.customerEmail || currentOrder.email!, {
           title: message.title,
           body: message.body,
           data: {
@@ -1715,7 +1730,7 @@ export const getCustomersByStatus = async (status: Customer['status']): Promise<
 export const getTopCustomers = async (limit: number = 10): Promise<Customer[]> => {
   if (!FIREBASE_ENABLED || !db || !customersCollection) {
     return mockCustomers
-      .sort((a, b) => b.totalSpent - a.totalSpent)
+      .sort((a, b) => (b.totalSpent || 0) - (a.totalSpent || 0))
       .slice(0, limit);
   }
 
@@ -1738,7 +1753,7 @@ export const getTopCustomers = async (limit: number = 10): Promise<Customer[]> =
   } catch (error) {
     console.error('Error getting top customers:', error);
     return mockCustomers
-      .sort((a, b) => b.totalSpent - a.totalSpent)
+      .sort((a, b) => (b.totalSpent || 0) - (a.totalSpent || 0))
       .slice(0, limit);
   }
 };
@@ -1749,7 +1764,7 @@ export const searchCustomers = async (searchTerm: string): Promise<Customer[]> =
     return mockCustomers.filter(customer => 
       customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.phone.includes(searchTerm)
+      customer.phone?.includes(searchTerm)
     );
   }
 
@@ -1768,14 +1783,14 @@ export const searchCustomers = async (searchTerm: string): Promise<Customer[]> =
     return customers.filter(customer => 
       customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.phone.includes(searchTerm)
+      customer.phone?.includes(searchTerm)
     );
   } catch (error) {
     console.error('Error searching customers:', error);
     return mockCustomers.filter(customer => 
       customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.phone.includes(searchTerm)
+      customer.phone?.includes(searchTerm)
     );
   }
 };
@@ -2017,8 +2032,8 @@ export const updateCustomerStats = async (customerEmail: string, newOrderAmount:
       const customerDoc = querySnapshot.docs[0];
       const customerData = customerDoc.data() as Customer;
       
-      const newTotalOrders = customerData.totalOrders + 1;
-      const newTotalSpent = customerData.totalSpent + newOrderAmount;
+      const newTotalOrders = (customerData.totalOrders || 0) + 1;
+      const newTotalSpent = (customerData.totalSpent || 0) + newOrderAmount;
       const newAverageOrderValue = newTotalSpent / newTotalOrders;
       
       // Get settings for loyalty program
@@ -2062,6 +2077,7 @@ export const updateCustomerStats = async (customerEmail: string, newOrderAmount:
         email: customerEmail,
         phone: '', // Will be updated later
         status: 'active',
+        createdAt: new Date(),
         lastOrderDate: new Date(),
         loyaltyPoints: pointsEarned,
         totalLoyaltyPointsEarned: pointsEarned,
@@ -2313,8 +2329,8 @@ const checkAndCreateSubscription = async (orderId: string, order: Order): Promis
     }
 
     // 3) احسب تفاصيل الخطة والمدة
-    let durationMonths = order.quantity;
-    let planType =  order.quantity;
+    let durationMonths = order.quantity || 1;
+    let planType =  order.quantity || 1;
     let subscriptionPrice = order.totalAmount;
 
     // if (order.notes && order.notes.includes('خطة:')) {
@@ -2419,7 +2435,10 @@ const checkAndCreateSubscription = async (orderId: string, order: Order): Promis
     });
 
     // 6) إحصائيات العميل (خارج الترانزاكشن)
-    await updateCustomerStats(order.customerEmail, order.totalAmount || 0);
+    const customerEmail = order.customerEmail || order.email;
+    if (customerEmail) {
+      await updateCustomerStats(customerEmail, order.totalAmount || 0);
+    }
 
   } catch (error) {
     console.error('Error upserting subscription from order:', error);
@@ -2485,13 +2504,15 @@ export const getSubscriptions = async (): Promise<Subscription[]> => {
 export const getCustomerSubscriptions = async (customerEmail: string): Promise<Subscription[]> => {
   if (!FIREBASE_ENABLED || !db || !subscriptionsCollection) {
     const customerSubs = mockSubscriptions.filter(sub => 
-      sub.customerEmail.toLowerCase() === customerEmail.toLowerCase()
+      sub.customerEmail?.toLowerCase() === customerEmail.toLowerCase()
     );
     // Update remaining days for mock data with accurate calculation
     return customerSubs.map(sub => {
       const now = new Date();
-      const remainingDays = Math.ceil((sub.endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-      const totalDays = Math.ceil((sub.endDate.getTime() - sub.startDate.getTime()) / (1000 * 60 * 60 * 24));
+      const endDate = sub.endDate || new Date();
+      const startDate = sub.startDate || new Date();
+      const remainingDays = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
       
       return {
         ...sub,
@@ -2547,11 +2568,11 @@ export const getCustomerSubscriptions = async (customerEmail: string): Promise<S
     console.error('Error getting customer subscriptions:', error);
     // Return mock data as fallback
     const customerSubs = mockSubscriptions.filter(sub => 
-      sub.customerEmail.toLowerCase() === customerEmail.toLowerCase()
+      sub.customerEmail?.toLowerCase() === customerEmail.toLowerCase()
     );
     return customerSubs.map(sub => ({
       ...sub,
-      remainingDays: Math.ceil((sub.endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+      remainingDays: Math.ceil(((sub.endDate || new Date()).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     })).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   }
 };
@@ -2620,7 +2641,7 @@ export const updateSubscription = async (id: string, updates: Partial<Subscripti
 // Cancel subscription
 export const cancelSubscription = async (id: string, reason?: string): Promise<void> => {
   await updateSubscription(id, {
-    status: 'cancelled',
+    status: 'inactive',
     autoRenewal: false,
     notes: reason ? `ملغي: ${reason}` : 'تم إلغاء الاشتراك'
   });
@@ -2641,7 +2662,7 @@ export const renewSubscription = async (id: string, newEndDate: Date): Promise<v
 // Pause subscription
 export const pauseSubscription = async (id: string): Promise<void> => {
   await updateSubscription(id, {
-    status: 'paused'
+    status: 'inactive'
   });
 };
 
@@ -2696,7 +2717,7 @@ export const subscribeToCustomerSubscriptions = (
 ) => {
   if (!FIREBASE_ENABLED || !db || !subscriptionsCollection) {
     const customerSubs = mockSubscriptions.filter(sub => 
-      sub.customerEmail.toLowerCase() === customerEmail.toLowerCase()
+      sub.customerEmail?.toLowerCase() === customerEmail.toLowerCase()
     );
     // تصفية الاشتراكات: إزالة المنتجات الملموسة أو التي تحتاج تنزيل
     const filteredSubs = customerSubs.filter(sub => {
@@ -2707,7 +2728,7 @@ export const subscribeToCustomerSubscriptions = (
     });
     callback(filteredSubs.map(sub => ({
       ...sub,
-      remainingDays: Math.ceil((sub.endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+      remainingDays: Math.ceil(((sub.endDate || new Date()).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     })).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
     return () => {}; // Return empty unsubscribe function
   }
@@ -2756,7 +2777,7 @@ export const subscribeToCustomerSubscriptions = (
     console.error('Error in subscription listener:', error);
     // Fallback to mock data on error
     const customerSubs = mockSubscriptions.filter(sub => 
-      sub.customerEmail.toLowerCase() === customerEmail.toLowerCase()
+      sub.customerEmail?.toLowerCase() === customerEmail.toLowerCase()
     );
     // تصفية الاشتراكات: إزالة المنتجات الملموسة أو التي تحتاج تنزيل
     const filteredSubs = customerSubs.filter(sub => {
@@ -2767,7 +2788,7 @@ export const subscribeToCustomerSubscriptions = (
     });
     callback(filteredSubs.map(sub => ({
       ...sub,
-      remainingDays: Math.ceil((sub.endDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+      remainingDays: Math.ceil(((sub.endDate || new Date()).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     })).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
   });
 };
@@ -2780,7 +2801,8 @@ export const calculateRemainingDays = (endDate: Date): number => {
 };
 
 export const isSubscriptionExpiringSoon = (subscription: Subscription, daysThreshold: number = 7): boolean => {
-  return subscription.remainingDays <= daysThreshold && subscription.remainingDays > 0;
+  const remainingDays = subscription.remainingDays || 0;
+  return remainingDays <= daysThreshold && remainingDays > 0;
 };
 
 export const getSubscriptionStatusColor = (status: Subscription['status']): string => {
@@ -2789,12 +2811,8 @@ export const getSubscriptionStatusColor = (status: Subscription['status']): stri
       return 'bg-green-100 text-green-800 border-green-200';
     case 'expired':
       return 'bg-red-100 text-red-800 border-red-200';
-    case 'cancelled':
+    case 'inactive':
       return 'bg-gray-100 text-gray-800 border-gray-200';
-    case 'pending':
-      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    case 'paused':
-      return 'bg-blue-100 text-blue-800 border-blue-200';
     default:
       return 'bg-gray-100 text-gray-800 border-gray-200';
   }
@@ -2806,12 +2824,8 @@ export const getSubscriptionStatusLabel = (status: Subscription['status']): stri
       return 'نشط';
     case 'expired':
       return 'منتهي الصلاحية';
-    case 'cancelled':
-      return 'ملغي';
-    case 'pending':
-      return 'معلق';
-    case 'paused':
-      return 'مؤقت';
+    case 'inactive':
+      return 'غير نشط';
     default:
       return 'غير محدد';
   }
@@ -3490,12 +3504,10 @@ export const validateDiscountCode = async (
           isActive: true,
           validFrom: new Date(),
           validTo: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-          usageLimit: 0,
-          usedCount: 0,
-          usageLimitPerCustomer: 1,
+          maxUses: 0,
+          currentUses: 0,
           createdAt: new Date(),
-          updatedAt: new Date(),
-          createdBy: 'system'
+          updatedAt: new Date()
         };
       }
     } catch (error) {
@@ -3520,21 +3532,21 @@ export const validateDiscountCode = async (
     return { valid: false, error: 'كود الخصم منتهي الصلاحية' };
   }
 
-  if (discountCode.usageLimit && discountCode.usedCount >= discountCode.usageLimit) {
+  if (discountCode.maxUses && (discountCode.currentUses || 0) >= discountCode.maxUses) {
     return { valid: false, error: 'تم استنفاد استخدامات كود الخصم' };
   }
 
-  if (totalAmount && discountCode.minPurchaseAmount && totalAmount < discountCode.minPurchaseAmount) {
-    return { valid: false, error: `الحد الأدنى للشراء ${discountCode.minPurchaseAmount}` };
+  if (totalAmount && discountCode.minPurchase && totalAmount < discountCode.minPurchase) {
+    return { valid: false, error: `الحد الأدنى للشراء ${discountCode.minPurchase}` };
   }
 
   if (productId) {
-    if (discountCode.excludeProductIds?.includes(productId)) {
+    if ((discountCode as any).excludeProductIds?.includes(productId)) {
       return { valid: false, error: 'كود الخصم غير صالح لهذا المنتج' };
     }
 
-    if (discountCode.applicableProductIds && discountCode.applicableProductIds.length > 0) {
-      if (!discountCode.applicableProductIds.includes(productId)) {
+    if ((discountCode as any).applicableProductIds && (discountCode as any).applicableProductIds.length > 0) {
+      if (!(discountCode as any).applicableProductIds.includes(productId)) {
         return { valid: false, error: 'كود الخصم غير صالح لهذا المنتج' };
       }
     }
@@ -3545,8 +3557,8 @@ export const validateDiscountCode = async (
   if (totalAmount) {
     if (discountCode.type === 'percentage') {
       discountAmount = (totalAmount * discountCode.value) / 100;
-      if (discountCode.maxDiscountAmount && discountAmount > discountCode.maxDiscountAmount) {
-        discountAmount = discountCode.maxDiscountAmount;
+      if ((discountCode as any).maxDiscountAmount && discountAmount > (discountCode as any).maxDiscountAmount) {
+        discountAmount = (discountCode as any).maxDiscountAmount;
       }
     } else {
       discountAmount = discountCode.value;
@@ -3632,7 +3644,7 @@ export const incrementDiscountCodeUsage = async (code: string, customerEmail?: s
     const discountCode = await getDiscountCodeByCode(code);
     if (discountCode) {
       await updateDiscountCode(discountCode.id, {
-        usedCount: discountCode.usedCount + 1
+        currentUses: (discountCode.currentUses || 0) + 1
       });
     }
   } catch (error) {
@@ -3833,12 +3845,12 @@ export const generateInvoicePDF = async (order: Order): Promise<Blob> => {
   
   pdf.setFontSize(10);
   pdf.setFont(fontName, 'normal');
-  pdf.text(`رقم الفاتورة: ${order.invoiceNumber || 'غير محدد'}`, 20, 52);
+  pdf.text(`رقم الفاتورة: ${(order as any).invoiceNumber || order.id}`, 20, 52);
   pdf.text(`تاريخ الفاتورة: ${new Intl.DateTimeFormat('ar-SA', {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
-  }).format(order.invoiceGeneratedAt || order.createdAt)}`, 20, 58);
+  }).format((order as any).invoiceGeneratedAt || order.createdAt)}`, 20, 58);
   pdf.text(`order n : ${order.id}`, 20, 64);
 
   // Customer Info
@@ -3857,9 +3869,9 @@ export const generateInvoicePDF = async (order: Order): Promise<Blob> => {
   pdf.text(`الهاتف: ${order.customerPhone}`, 20, yPos);
 
   // Shipping address if exists
-  if (order.shippingAddress) {
+  if ((order as any).shippingAddress) {
     yPos += 6;
-    pdf.text(`عنوان الشحن: ${order.shippingAddress}`, 20, yPos);
+    pdf.text(`عنوان الشحن: ${(order as any).shippingAddress}`, 20, yPos);
   }
 
   // Items Table
@@ -3883,26 +3895,26 @@ export const generateInvoicePDF = async (order: Order): Promise<Blob> => {
   // Table Row
   yPos += 8;
   pdf.setFont(fontName, 'normal');
-  pdf.text(order.productName, 25, yPos);
+  pdf.text(order.productName || 'منتج', 25, yPos);
   pdf.text(String(order.quantity || 1), 120, yPos);
   pdf.text(`${order.productPrice || 0} ر.س`, 145, yPos);
   pdf.text(`${order.totalAmount || 0} ر.س`, 180, yPos);
 
   // Discount info if exists
-  if (order.discountCode || order.discountAmount) {
+  if (order.discountCode || order.discount) {
     yPos += 7;
     pdf.setFontSize(9);
     pdf.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
-    if (order.originalAmount) {
-      pdf.text(`المبلغ الأصلي: ${order.originalAmount} ر.س`, 150, yPos);
+    if (order.originalPrice) {
+      pdf.text(`المبلغ الأصلي: ${order.originalPrice} ر.س`, 150, yPos);
     }
     if (order.discountCode) {
       yPos += 5;
       pdf.text(`كود الخصم: ${order.discountCode}`, 150, yPos);
     }
-    if (order.discountAmount) {
+    if (order.discount) {
       yPos += 5;
-      pdf.text(`الخصم: -${order.discountAmount} ر.س`, 150, yPos);
+      pdf.text(`الخصم: -${order.discount} ر.س`, 150, yPos);
     }
     pdf.setTextColor(0, 0, 0);
   }
@@ -3987,7 +3999,7 @@ export const generateOrderInvoice = async (orderId: string): Promise<{
     };
 
     // Generate invoice number if not exists
-    let invoiceNumber = order.invoiceNumber;
+    let invoiceNumber = (order as any).invoiceNumber;
     if (!invoiceNumber) {
       invoiceNumber = await generateInvoiceNumber();
     }
@@ -3996,7 +4008,7 @@ export const generateOrderInvoice = async (orderId: string): Promise<{
     const pdfBlob = await generateInvoicePDF({
       ...order,
       invoiceNumber
-    });
+    } as any);
 
     // Update order with invoice info
     await updateDoc(orderRef, {
@@ -4238,7 +4250,7 @@ export const getDashboardStats = async () => {
     const todayOrders = orders.filter(order => 
       order.createdAt >= today && order.status === 'confirmed'
     );
-    const todaySales = todayOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+    const todaySales = todayOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
 
     // Calculate new orders today
     const newOrdersToday = orders.filter(order => order.createdAt >= today).length;
@@ -4253,7 +4265,7 @@ export const getDashboardStats = async () => {
     // Calculate total revenue
     const totalRevenue = orders
       .filter(order => order.status === 'confirmed')
-      .reduce((sum, order) => sum + order.totalAmount, 0);
+      .reduce((sum, order) => sum + (order.totalAmount || 0), 0);
 
     // Calculate average order value
     const confirmedOrders = orders.filter(order => order.status === 'confirmed');
@@ -4318,7 +4330,7 @@ export const getRevenueByDateRange = async (startDate: Date, endDate: Date) => {
   const orders = await getOrdersByDateRange(startDate, endDate);
   return orders
     .filter(order => order.status === 'confirmed')
-    .reduce((sum, order) => sum + order.totalAmount, 0);
+    .reduce((sum, order) => sum + (order.totalAmount || 0), 0);
 };
 
 // Get top selling products
@@ -4327,6 +4339,8 @@ export const getTopSellingProducts = async (limit: number = 5) => {
   const productSales: { [key: string]: { product: Product; count: number; revenue: number } } = {};
   
   orders.forEach(order => {
+    if (!order.productId) return;
+    
     if (!productSales[order.productId]) {
       const product = mockProducts.find(p => p.id === order.productId);
       if (product) {
@@ -4338,8 +4352,8 @@ export const getTopSellingProducts = async (limit: number = 5) => {
       }
     }
     if (productSales[order.productId]) {
-      productSales[order.productId].count += order.quantity;
-      productSales[order.productId].revenue += order.productPrice * order.quantity;
+      productSales[order.productId].count += (order.quantity || 1);
+      productSales[order.productId].revenue += (order.productPrice || 0) * (order.quantity || 1);
     }
   });
 
@@ -4355,10 +4369,17 @@ export const getTopSellingProducts = async (limit: number = 5) => {
 // Import blog interfaces
 import type { 
   BlogPost, 
-  BlogCategory, 
-  BlogTag, 
-  BlogComment 
+  BlogCategory 
 } from './firebase';
+
+// Define BlogTag interface locally since it's not in firebase module
+interface BlogTag {
+  id: string;
+  name: string;
+  slug: string;
+  postsCount?: number;
+  createdAt: Date;
+}
 
 // Mock blog data for development
 const mockCategories: BlogCategory[] = [
@@ -4370,8 +4391,6 @@ const mockCategories: BlogCategory[] = [
     color: '#3B82F6',
     icon: '💻',
     postsCount: 5,
-    order: 1,
-    isActive: true,
     createdAt: new Date('2024-01-15'),
     updatedAt: new Date('2024-01-20')
   },
@@ -4383,8 +4402,6 @@ const mockCategories: BlogCategory[] = [
     color: '#10B981',
     icon: '🚀',
     postsCount: 3,
-    order: 2,
-    isActive: true,
     createdAt: new Date('2024-01-10'),
     updatedAt: new Date('2024-01-18')
   },
@@ -4396,8 +4413,6 @@ const mockCategories: BlogCategory[] = [
     color: '#F59E0B',
     icon: '📱',
     postsCount: 7,
-    order: 3,
-    isActive: true,
     createdAt: new Date('2024-01-05'),
     updatedAt: new Date('2024-01-22')
   }
@@ -4874,7 +4889,8 @@ export const canCustomerReviewSubscription = async (customerEmail: string, subsc
     // Check if customer already reviewed this subscription
     const existingReviews = await getSubscriptionReviews(subscriptionId);
     const hasExistingReview = existingReviews.some(review => 
-      review.customerEmail.toLowerCase() === customerEmail.toLowerCase()
+      (review as any).customerEmail?.toLowerCase() === customerEmail.toLowerCase() || 
+      review.customerId === customerEmail
     );
     
     if (hasExistingReview) {

@@ -20,7 +20,6 @@ export default function EditReviewModal({
   onReviewUpdated 
 }: EditReviewModalProps) {
   const [rating, setRating] = useState(review.rating);
-  const [title, setTitle] = useState(review.title);
   const [comment, setComment] = useState(review.comment);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -29,7 +28,6 @@ export default function EditReviewModal({
     if (isOpen) {
       // Reset form with current review data
       setRating(review.rating);
-      setTitle(review.title);
       setComment(review.comment);
       setError('');
     }
@@ -38,8 +36,8 @@ export default function EditReviewModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!title.trim() || !comment.trim()) {
-      setError('يرجى ملء جميع الحقول المطلوبة');
+    if (!comment.trim()) {
+      setError('يرجى كتابة تعليق');
       return;
     }
 
@@ -49,7 +47,6 @@ export default function EditReviewModal({
     try {
       await updateSubscriptionReview(review.id, {
         rating: rating,
-        title: title.trim(),
         comment: comment.trim()
       });
 
@@ -78,7 +75,7 @@ export default function EditReviewModal({
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-xl font-bold text-gray-900">تعديل التقييم</h2>
-              <p className="text-sm text-gray-600 mt-1">{review.productName}</p>
+              <p className="text-sm text-gray-600 mt-1">اشتراك #{review.subscriptionId.slice(-8)}</p>
             </div>
             <button
               onClick={onClose}
@@ -120,21 +117,6 @@ export default function EditReviewModal({
             </div>
 
             {/* Title */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                عنوان التقييم *
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="اكتب عنواناً مختصراً لتقييمك"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                maxLength={100}
-              />
-              <p className="text-xs text-gray-500 mt-1">{title.length}/100</p>
-            </div>
-
             {/* Comment */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -174,7 +156,7 @@ export default function EditReviewModal({
               </button>
               <button
                 type="submit"
-                disabled={loading || !title.trim() || !comment.trim()}
+                disabled={loading || !comment.trim()}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {loading ? (

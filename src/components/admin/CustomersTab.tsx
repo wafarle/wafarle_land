@@ -184,7 +184,7 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
   const loadCustomerOrders = async (customerEmail: string) => {
     try {
       const allOrders = await getOrders();
-      const customerOrdersData = allOrders.filter(order => order.customerEmail === customerEmail);
+      const customerOrdersData = allOrders.filter(order => order.email === customerEmail || order.customerName === customerEmail);
       setCustomerOrders(customerOrdersData);
     } catch (error) {
       console.error('Error loading customer orders:', error);
@@ -274,7 +274,8 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
         notes: addCustomerData.notes.trim() || undefined,
         tags: addCustomerData.tags.length > 0 ? addCustomerData.tags : undefined,
         preferredPaymentMethod: addCustomerData.preferredPaymentMethod,
-        lastOrderDate: new Date() // Set current date as initial date
+        lastOrderDate: new Date(), // Set current date as initial date
+        createdAt: new Date()
       };
 
       const customerId = await addCustomer(customerData);
@@ -342,7 +343,7 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
 
   // Get customer avatar
   const getCustomerAvatar = (customer: Customer) => {
-    return customer.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(customer.name)}&background=f3f4f6&color=374151&size=40`;
+    return (customer as any).avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(customer.name)}&background=f3f4f6&color=374151&size=40`;
   };
 
   // Get stats
@@ -350,9 +351,9 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
     const active = customers.filter(customer => customer.status === 'active').length;
     const inactive = customers.filter(customer => customer.status === 'inactive').length;
     const blocked = customers.filter(customer => customer.status === 'blocked').length;
-    const totalRevenue = customers.reduce((sum, customer) => sum + customer.totalSpent, 0);
-    const averageOrderValue = customers.length > 0 
-      ? customers.reduce((sum, customer) => sum + customer.averageOrderValue, 0) / customers.length 
+    const totalRevenue = customers.reduce((sum, customer) => sum + (customer.totalSpent ?? 0), 0);
+    const averageOrderValue = customers.length > 0
+      ? customers.reduce((sum, customer) => sum + ((customer as any).averageOrderValue ?? 0), 0) / customers.length
       : 0;
 
     return { active, inactive, blocked, totalRevenue, averageOrderValue };
@@ -496,7 +497,7 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredCustomers.map((customer) => {
-                const StatusIcon = statusConfig[customer.status].icon;
+                const StatusIcon = statusConfig[customer.status || 'active'].icon;
                 
                 return (
                   <tr key={customer.id} className="hover:bg-gray-50">
@@ -512,21 +513,21 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
                         <div className="mr-4">
                           <div className="text-sm font-medium text-gray-900 flex items-center gap-2">
                             {customer.name}
-                            {customer.tags?.includes('VIP') && (
+                            {(customer as any).tags?.includes('VIP') && (
                               <Crown className="w-4 h-4 text-yellow-500" />
                             )}
                           </div>
                           <div className="text-sm text-gray-500">رقم العميل: #{customer.id.slice(-6)}</div>
-                          {customer.tags && customer.tags.length > 0 && (
+                          {(customer as any).tags && (customer as any).tags.length > 0 && (
                             <div className="flex gap-1 mt-1">
-                              {customer.tags.slice(0, 2).map((tag, index) => (
+                              {(customer as any).tags.slice(0, 2).map((tag: string, index: number) => (
                                 <span key={index} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                                   <Tag className="w-3 h-3 mr-1" />
                                   {tag}
                                 </span>
                               ))}
-                              {customer.tags.length > 2 && (
-                                <span className="text-xs text-gray-500">+{customer.tags.length - 2}</span>
+                              {(customer as any).tags.length > 2 && (
+                                <span className="text-xs text-gray-500">+{(customer as any).tags.length - 2}</span>
                               )}
                             </div>
                           )}
@@ -542,7 +543,7 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
                         </div>
                         <div className="flex items-center gap-2 mb-1">
                           <Phone className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm" dir="ltr">{formatPhone(customer.phone)}</span>
+                          <span className="text-sm" dir="ltr">{customer.phone ? formatPhone(customer.phone) : 'غير محدد'}</span>
                         </div>
                         {customer.city && (
                           <div className="flex items-center gap-2">
@@ -554,9 +555,9 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
                     </td>
 
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig[customer.status].color}`}>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig[customer.status || 'active'].color}`}>
                         <StatusIcon className="w-4 h-4 mr-1" />
-                        {statusConfig[customer.status].label}
+                        {statusConfig[customer.status || 'active'].label}
                       </span>
                     </td>
 
@@ -564,15 +565,15 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
                       <div className="text-sm text-gray-900">
                         <div className="flex items-center gap-2 mb-1">
                           <ShoppingBag className="w-4 h-4 text-gray-400" />
-                          <span>{customer.totalOrders} طلب</span>
+                          <span>{customer.totalOrders ?? 0} طلب</span>
                         </div>
                         <div className="flex items-center gap-2 mb-1">
                           <DollarSign className="w-4 h-4 text-gray-400" />
-                          <span className="font-medium">${customer.totalSpent.toFixed(2)}</span>
+                          <span className="font-medium">${(customer.totalSpent ?? 0).toFixed(2)}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <TrendingUp className="w-4 h-4 text-gray-400" />
-                          <span className="text-xs text-gray-500">متوسط: ${customer.averageOrderValue.toFixed(2)}</span>
+                          <span className="text-xs text-gray-500">متوسط: ${((customer as any).averageOrderValue ?? 0).toFixed(2)}</span>
                         </div>
                       </div>
                     </td>
@@ -582,7 +583,7 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
                     </td>
 
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(customer.registrationDate)}
+                      {customer.createdAt ? formatDate(customer.createdAt) : 'غير محدد'}
                     </td>
 
                     <td className="px-6 py-4 whitespace-nowrap text-center w-48">
@@ -742,13 +743,13 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
                     <div>
                       <h3 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
                         {selectedCustomer.name}
-                        {selectedCustomer.tags?.includes('VIP') && (
+                        {(selectedCustomer as any).tags?.includes('VIP') && (
                           <Crown className="w-5 h-5 text-yellow-500" />
                         )}
                       </h3>
                       <p className="text-gray-600">#{selectedCustomer.id.slice(-8)}</p>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 ${statusConfig[selectedCustomer.status].color}`}>
-                        {statusConfig[selectedCustomer.status].label}
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-1 ${statusConfig[selectedCustomer.status || 'active'].color}`}>
+                        {statusConfig[selectedCustomer.status || 'active'].label}
                       </span>
                     </div>
                   </div>
@@ -775,7 +776,7 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-gray-500">رقم الهاتف:</span>
-                          <span className="text-gray-900" dir="ltr">{formatPhone(selectedCustomer.phone)}</span>
+                          <span className="text-gray-900" dir="ltr">{selectedCustomer.phone ? formatPhone(selectedCustomer.phone) : 'غير محدد'}</span>
                         </div>
                         {selectedCustomer.city && (
                           <div className="flex justify-between">
@@ -791,7 +792,7 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
                         )}
                         <div className="flex justify-between">
                           <span className="text-gray-500">تاريخ التسجيل:</span>
-                          <span className="text-gray-900">{formatDate(selectedCustomer.registrationDate)}</span>
+                          <span className="text-gray-900">{selectedCustomer.createdAt ? formatDate(selectedCustomer.createdAt) : 'غير محدد'}</span>
                         </div>
                       </div>
                     </div>
@@ -803,15 +804,15 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
                       </h4>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-blue-800">{selectedCustomer.totalOrders}</div>
+                          <div className="text-2xl font-bold text-blue-800">{selectedCustomer.totalOrders ?? 0}</div>
                           <div className="text-blue-600">إجمالي الطلبات</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-green-800">${selectedCustomer.totalSpent.toFixed(2)}</div>
+                          <div className="text-2xl font-bold text-green-800">${(selectedCustomer.totalSpent ?? 0).toFixed(2)}</div>
                           <div className="text-green-600">إجمالي الإنفاق</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-lg font-bold text-purple-800">${selectedCustomer.averageOrderValue.toFixed(2)}</div>
+                          <div className="text-lg font-bold text-purple-800">${((selectedCustomer as any).averageOrderValue ?? 0).toFixed(2)}</div>
                           <div className="text-purple-600">متوسط قيمة الطلب</div>
                         </div>
                         <div className="text-center">
@@ -847,11 +848,11 @@ const CustomersTab = ({ onCustomersCountChange }: CustomersTabProps) => {
                               <div key={order.id} className="p-4">
                                 <div className="flex justify-between items-start mb-2">
                                   <div>
-                                    <div className="font-medium text-gray-900">{order.productName}</div>
+                                    <div className="font-medium text-gray-900">{order.product?.name || 'منتج غير محدد'}</div>
                                     <div className="text-sm text-gray-500">#{order.id.slice(-8)}</div>
                                   </div>
                                   <div className="text-right">
-                                    <div className="font-medium">${order.totalAmount}</div>
+                                    <div className="font-medium">${order.totalPrice}</div>
                                     <div className="text-sm text-gray-500">{formatDate(order.createdAt)}</div>
                                   </div>
                                 </div>

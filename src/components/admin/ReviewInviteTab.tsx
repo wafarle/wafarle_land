@@ -49,9 +49,8 @@ export const ReviewInviteTab = () => {
               isActive: true,
               validFrom: new Date(),
               validTo: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // Valid for 1 year
-              usageLimit: 0, // Unlimited
-              usageLimitPerCustomer: 1, // One use per customer
-              createdBy: 'system'
+              maxUses: 0, // Unlimited
+              currentUses: 0
             });
           } catch (error: any) {
             // If code exists, try to update it

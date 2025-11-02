@@ -41,7 +41,8 @@ export default function SubscriptionManagementModal({
   const { formatPrice } = useFormatPrice();
 
   // Calculate remaining days
-  const calculateRemainingDays = (endDate: Date) => {
+  const calculateRemainingDays = (endDate?: Date) => {
+    if (!endDate) return 0;
     const now = new Date();
     const diffTime = endDate.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -52,7 +53,9 @@ export default function SubscriptionManagementModal({
   const isExpiring = remainingDays <= 30 && remainingDays > 0;
 
   // Calculate progress
-  const totalDays = Math.ceil((subscription.endDate.getTime() - subscription.startDate.getTime()) / (1000 * 60 * 60 * 24));
+  const totalDays = subscription.endDate && subscription.startDate 
+    ? Math.ceil((subscription.endDate.getTime() - subscription.startDate.getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
   const usedDays = totalDays - remainingDays;
   const progressPercentage = totalDays > 0 ? Math.max(0, Math.min(100, (usedDays / totalDays) * 100)) : 0;
 
@@ -249,12 +252,12 @@ export default function SubscriptionManagementModal({
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-gray-500" />
                       <span className="text-gray-600">تاريخ البداية:</span>
-                      <span className="font-medium">{subscription.startDate.toLocaleDateString('ar-SA')}</span>
+                      <span className="font-medium">{subscription.startDate?.toLocaleDateString('ar-SA') || 'غير محدد'}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-gray-500" />
                       <span className="text-gray-600">تاريخ الانتهاء:</span>
-                      <span className="font-medium">{subscription.endDate.toLocaleDateString('ar-SA')}</span>
+                      <span className="font-medium">{subscription.endDate?.toLocaleDateString('ar-SA') || 'غير محدد'}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <DollarSign className="w-4 h-4 text-gray-500" />
@@ -316,7 +319,7 @@ export default function SubscriptionManagementModal({
                     </div>
                     <div className="flex justify-between items-center py-2">
                       <span className="text-gray-600">تاريخ الدفع التالي</span>
-                      <span className="font-medium">{subscription.endDate.toLocaleDateString('ar-SA')}</span>
+                      <span className="font-medium">{subscription.endDate?.toLocaleDateString('ar-SA') || 'غير محدد'}</span>
                     </div>
                   </div>
                 </div>

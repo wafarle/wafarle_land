@@ -68,6 +68,7 @@ export const signUpCustomer = async (
       email: email,
       phone: phone,
       status: 'active',
+      createdAt: new Date(),
       lastOrderDate: new Date()
     });
     return {
@@ -110,6 +111,7 @@ export const signInWithGoogle = async (): Promise<CustomerUser> => {
         email: user.email || '',
         phone: user.phoneNumber || '',
         status: 'active',
+        createdAt: new Date(),
         lastOrderDate: new Date(),
         authProvider: 'google'
       });
@@ -120,6 +122,7 @@ export const signInWithGoogle = async (): Promise<CustomerUser> => {
         email: user.email || '',
         phone: user.phoneNumber || '',
         status: 'active',
+        createdAt: new Date(),
         lastOrderDate: new Date(),
         authProvider: 'google',
         totalOrders: 0,

@@ -71,7 +71,7 @@ export const CustomerNotificationProvider = ({ children }: { children: ReactNode
 
     const unsubscribeOrders = subscribeToOrders((orders) => {
       const customerOrders = orders.filter(
-        o => o.customerEmail.toLowerCase() === customerUser.email.toLowerCase()
+        o => o.customerEmail?.toLowerCase() === customerUser.email.toLowerCase()
       );
 
       // Check for new orders or status changes

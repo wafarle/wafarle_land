@@ -572,7 +572,7 @@ function LicenseForm({
                 </label>
                 <select
                   value={formData.type}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value as 'basic' | 'professional' | 'enterprise' })}
                   className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all"
                 >
                   <option value="basic">أساسي</option>
@@ -587,7 +587,7 @@ function LicenseForm({
                 </label>
                 <select
                   value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value as 'active' | 'expired' | 'suspended' | 'trial' })}
                   className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white focus:border-blue-400 focus:ring-2 focus:ring-blue-400/30 transition-all"
                 >
                   <option value="active">نشط</option>

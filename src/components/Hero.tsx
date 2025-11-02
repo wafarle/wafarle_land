@@ -104,7 +104,7 @@ const Hero = () => {
                   {coupon.description && (
                     <p className="text-xs text-gray-600 text-right">{coupon.description}</p>
                   )}
-                  {coupon.freeShipping && (
+                  {(coupon as any).freeShipping && (
                     <p className="text-xs text-blue-600 font-medium mt-1">🚚 شحن مجاني</p>
                   )}
                 </motion.div>

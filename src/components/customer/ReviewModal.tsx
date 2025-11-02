@@ -64,19 +64,14 @@ export default function ReviewModal({
     setError('');
 
     try {
+      // SubscriptionReview only has: subscriptionId, customerId, customerName, rating, comment, isApproved
       await addSubscriptionReview({
         subscriptionId: subscription.id,
         customerId: customerEmail,
-        customerEmail: customerEmail,
         customerName: customerName,
-        productId: subscription.productId,
-        productName: subscription.productName,
         rating: rating,
-        title: title.trim(),
         comment: comment.trim(),
-        isVerified: true,
-        helpful: 0,
-        status: 'pending'
+        isApproved: false // Pending approval
       });
 
       // Reset form
@@ -110,7 +105,7 @@ export default function ReviewModal({
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-xl font-bold text-gray-900">تقييم الاشتراك</h2>
-              <p className="text-sm text-gray-600 mt-1">{subscription.productName}</p>
+              <p className="text-sm text-gray-600 mt-1">{subscription.name}</p>
             </div>
             <button
               onClick={onClose}
@@ -305,7 +300,6 @@ export function ReviewList({ reviews, onEdit, onDelete, showActions = false }: R
           <div className="flex items-start justify-between mb-3">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
-                <h4 className="font-semibold text-gray-900">{review.title}</h4>
                 <div className="flex items-center gap-2">
                   {renderStars(review.rating)}
                   <span className="text-sm text-gray-500">{review.rating}/5</span>
@@ -315,23 +309,14 @@ export function ReviewList({ reviews, onEdit, onDelete, showActions = false }: R
                 <span>{review.customerName}</span>
                 <span>•</span>
                 <span>{formatDate(review.createdAt)}</span>
-                {review.isVerified && (
-                  <>
-                    <span>•</span>
-                    <span className="flex items-center gap-1 text-green-600">
-                      <CheckCircle className="w-4 h-4" />
-                      عميل موثق
-                    </span>
-                  </>
-                )}
                 <span>•</span>
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  review.status === 'approved' ? 'bg-green-100 text-green-800' :
-                  review.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-red-100 text-red-800'
+                  review.isApproved === true ? 'bg-green-100 text-green-800' :
+                  review.isApproved === false ? 'bg-red-100 text-red-800' :
+                  'bg-yellow-100 text-yellow-800'
                 }`}>
-                  {review.status === 'approved' ? 'موافق عليه' :
-                   review.status === 'pending' ? 'معلق' : 'مرفوض'}
+                  {review.isApproved === true ? 'موافق عليه' :
+                   review.isApproved === false ? 'مرفوض' : 'قيد المراجعة'}
                 </span>
               </div>
             </div>
@@ -375,15 +360,6 @@ export function ReviewList({ reviews, onEdit, onDelete, showActions = false }: R
               <p>{review.comment}</p>
             )}
           </div>
-
-          {review.helpful > 0 && (
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <div className="flex items-center gap-1 text-sm text-gray-600">
-                <ThumbsUp className="w-4 h-4" />
-                <span>{review.helpful} شخص وجد هذا التقييم مفيداً</span>
-              </div>
-            </div>
-          )}
         </motion.div>
       ))}
     </div>

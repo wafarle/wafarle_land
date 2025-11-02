@@ -88,16 +88,18 @@ export default function ReviewsTab({ onReviewsCountChange }: ReviewsTabProps) {
     // Search filter
     if (searchTerm) {
       filtered = filtered.filter(review =>
-        review.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         review.comment.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        review.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        review.productName.toLowerCase().includes(searchTerm.toLowerCase())
+        review.customerName.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
     // Status filter
     if (statusFilter !== 'all') {
-      filtered = filtered.filter(review => review.status === statusFilter);
+      if (statusFilter === 'approved') {
+        filtered = filtered.filter(review => review.isApproved === true);
+      } else if (statusFilter === 'pending') {
+        filtered = filtered.filter(review => review.isApproved !== true);
+      }
     }
 
     // Rating filter
@@ -106,10 +108,10 @@ export default function ReviewsTab({ onReviewsCountChange }: ReviewsTabProps) {
       filtered = filtered.filter(review => review.rating === rating);
     }
 
-    // Product filter
-    if (productFilter !== 'all') {
-      filtered = filtered.filter(review => review.productId === productFilter);
-    }
+    // Product filter - disabled: SubscriptionReview doesn't have productId
+    // if (productFilter !== 'all') {
+    //   filtered = filtered.filter(review => review.productId === productFilter);
+    // }
 
     setFilteredReviews(filtered);
   };
@@ -117,20 +119,20 @@ export default function ReviewsTab({ onReviewsCountChange }: ReviewsTabProps) {
   const handleStatusUpdate = async (reviewId: string, newStatus: 'pending' | 'approved' | 'rejected') => {
     try {
       setUpdatingReview(reviewId);
-      await updateSubscriptionReview(reviewId, { status: newStatus });
+      await updateSubscriptionReview(reviewId, { isApproved: newStatus === 'approved' });
       
       // Find the review to get product ID
       const review = reviews.find(r => r.id === reviewId);
       
       // Update local state
       setReviews(prev => prev.map(review => 
-        review.id === reviewId ? { ...review, status: newStatus } : review
+        review.id === reviewId ? { ...review, isApproved: newStatus === 'approved' } : review
       ));
       
-      // Update product stats if status changed to/from approved
-      if (review && (newStatus === 'approved' || review.status === 'approved')) {
-        await updateProductReviewStats(review.productId);
-      }
+      // Update product stats - disabled: SubscriptionReview doesn't have productId
+      // if (review && (newStatus === 'approved' || review.isApproved === true)) {
+      //   await updateProductReviewStats(review.productId);
+      // }
       
       setActionMenuReview(null);
     } catch (error) {
@@ -155,10 +157,10 @@ export default function ReviewsTab({ onReviewsCountChange }: ReviewsTabProps) {
       setReviews(prev => prev.filter(review => review.id !== reviewId));
       setActionMenuReview(null);
       
-      // Update product stats if deleted review was approved
-      if (review && review.status === 'approved') {
-        await updateProductReviewStats(review.productId);
-      }
+      // Update product stats - disabled: SubscriptionReview doesn't have productId
+      // if (review && review.isApproved === true) {
+      //   await updateProductReviewStats(review.productId);
+      // }
       
       onReviewsCountChange?.(reviews.length - 1);
     } catch (error) {
@@ -202,22 +204,16 @@ export default function ReviewsTab({ onReviewsCountChange }: ReviewsTabProps) {
     );
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved': return 'bg-green-100 text-green-800 border-green-200';
-      case 'rejected': return 'bg-red-100 text-red-800 border-red-200';
-      case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
+  const getStatusColor = (isApproved?: boolean) => {
+    if (isApproved === true) return 'bg-green-100 text-green-800 border-green-200';
+    if (isApproved === false) return 'bg-red-100 text-red-800 border-red-200';
+    return 'bg-yellow-100 text-yellow-800 border-yellow-200';
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'approved': return 'موافق عليه';
-      case 'rejected': return 'مرفوض';
-      case 'pending': return 'معلق';
-      default: return status;
-    }
+  const getStatusLabel = (isApproved?: boolean) => {
+    if (isApproved === true) return 'موافق عليه';
+    if (isApproved === false) return 'مرفوض';
+    return 'معلق';
   };
 
   const formatDate = (date: Date) => {
@@ -232,9 +228,9 @@ export default function ReviewsTab({ onReviewsCountChange }: ReviewsTabProps) {
 
   const getStats = () => {
     const total = reviews.length;
-    const approved = reviews.filter(r => r.status === 'approved').length;
-    const pending = reviews.filter(r => r.status === 'pending').length;
-    const rejected = reviews.filter(r => r.status === 'rejected').length;
+    const approved = reviews.filter(r => r.isApproved === true).length;
+    const pending = reviews.filter(r => r.isApproved !== true && r.isApproved !== false).length;
+    const rejected = reviews.filter(r => r.isApproved === false).length;
     const averageRating = total > 0 ? reviews.reduce((sum, r) => sum + r.rating, 0) / total : 0;
 
     return { total, approved, pending, rejected, averageRating };
@@ -395,13 +391,12 @@ export default function ReviewsTab({ onReviewsCountChange }: ReviewsTabProps) {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h4 className="font-semibold text-white">{review.title}</h4>
                       <div className="flex items-center gap-2">
                         {renderStars(review.rating, 'sm')}
                         <span className="text-sm text-white/60">{review.rating}/5</span>
                       </div>
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(review.status)}`}>
-                        {getStatusLabel(review.status)}
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(review.isApproved)}`}>
+                        {getStatusLabel(review.isApproved)}
                       </span>
                     </div>
 
@@ -414,18 +409,12 @@ export default function ReviewsTab({ onReviewsCountChange }: ReviewsTabProps) {
                       </div>
                       <div className="flex items-center gap-1">
                         <Package className="w-3 h-3" />
-                        <span>{review.productName}</span>
+                        <span>اشتراك #{review.subscriptionId.slice(-6)}</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
                         <span>{formatDate(review.createdAt)}</span>
                       </div>
-                      {review.isVerified && (
-                        <div className="flex items-center gap-1 text-green-400">
-                          <CheckCircle className="w-3 h-3" />
-                          <span>عميل موثق</span>
-                        </div>
-                      )}
                     </div>
                   </div>
 
@@ -453,7 +442,7 @@ export default function ReviewsTab({ onReviewsCountChange }: ReviewsTabProps) {
                       {actionMenuReview === review.id && (
                         <div className="absolute left-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
                           <div className="py-1">
-                            {review.status === 'pending' && (
+                            {review.isApproved !== true && review.isApproved !== false && (
                               <>
                                 <button
                                   onClick={() => handleStatusUpdate(review.id, 'approved')}
@@ -482,7 +471,7 @@ export default function ReviewsTab({ onReviewsCountChange }: ReviewsTabProps) {
                                 </button>
                               </>
                             )}
-                            {review.status === 'approved' && (
+                            {review.isApproved === true && (
                               <button
                                 onClick={() => handleStatusUpdate(review.id, 'rejected')}
                                 disabled={updatingReview === review.id}
@@ -492,7 +481,7 @@ export default function ReviewsTab({ onReviewsCountChange }: ReviewsTabProps) {
                                 رفض التقييم
                               </button>
                             )}
-                            {review.status === 'rejected' && (
+                            {review.isApproved === false && (
                               <button
                                 onClick={() => handleStatusUpdate(review.id, 'approved')}
                                 disabled={updatingReview === review.id}
@@ -550,13 +539,12 @@ export default function ReviewsTab({ onReviewsCountChange }: ReviewsTabProps) {
 
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-lg font-semibold text-gray-900">{selectedReview.title}</h3>
                   <div className="flex items-center gap-2">
                     {renderStars(selectedReview.rating, 'md')}
                     <span className="text-sm text-gray-600">{selectedReview.rating}/5</span>
                   </div>
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(selectedReview.status)}`}>
-                    {getStatusLabel(selectedReview.status)}
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getStatusColor(selectedReview.isApproved)}`}>
+                    {getStatusLabel(selectedReview.isApproved)}
                   </span>
                 </div>
 
@@ -570,27 +558,14 @@ export default function ReviewsTab({ onReviewsCountChange }: ReviewsTabProps) {
                     <span className="text-gray-600 mr-2">{selectedReview.customerName}</span>
                   </div>
                   <div>
-                    <span className="font-medium text-gray-700">المنتج:</span>
-                    <span className="text-gray-600 mr-2">{selectedReview.productName}</span>
+                    <span className="font-medium text-gray-700">الاشتراك:</span>
+                    <span className="text-gray-600 mr-2">#{selectedReview.subscriptionId.slice(-8)}</span>
                   </div>
                   <div>
                     <span className="font-medium text-gray-700">تاريخ التقييم:</span>
                     <span className="text-gray-600 mr-2">{formatDate(selectedReview.createdAt)}</span>
                   </div>
-                  <div>
-                    <span className="font-medium text-gray-700">العميل موثق:</span>
-                    <span className={`mr-2 ${selectedReview.isVerified ? 'text-green-600' : 'text-gray-600'}`}>
-                      {selectedReview.isVerified ? 'نعم' : 'لا'}
-                    </span>
-                  </div>
                 </div>
-
-                {selectedReview.helpful > 0 && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <ThumbsUp className="w-4 h-4" />
-                    <span>{selectedReview.helpful} شخص وجد هذا التقييم مفيداً</span>
-                  </div>
-                )}
               </div>
             </div>
           </motion.div>

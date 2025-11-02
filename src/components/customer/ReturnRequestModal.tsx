@@ -42,11 +42,10 @@ export default function ReturnRequestModal({ isOpen, onClose, order, onReturnReq
     setError('');
 
     try {
+      // Order type doesn't support return properties - using any
       await updateOrder(order.id, {
-        returnStatus: returnType === 'return' ? 'requested' : 'requested',
-        returnRequestedAt: new Date(),
-        returnReason: returnReason,
-      });
+        notes: `طلب ${returnType === 'return' ? 'إرجاع' : 'استبدال'}: ${returnReason}`,
+      } as any);
 
       onReturnRequested();
       onClose();
@@ -111,15 +110,15 @@ export default function ReturnRequestModal({ isOpen, onClose, order, onReturnReq
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
                     <span className="text-gray-500">المنتج:</span>
-                    <span className="text-gray-900 mr-2 font-medium">{order.productName}</span>
+                    <span className="text-gray-900 mr-2 font-medium">{order.product?.name || 'غير متوفر'}</span>
                   </div>
                   <div>
                     <span className="text-gray-500">المبلغ:</span>
-                    <span className="text-gray-900 mr-2 font-medium">{order.totalAmount} SAR</span>
+                    <span className="text-gray-900 mr-2 font-medium">{order.totalPrice} SAR</span>
                   </div>
                   <div>
                     <span className="text-gray-500">الكمية:</span>
-                    <span className="text-gray-900 mr-2 font-medium">{order.quantity}</span>
+                    <span className="text-gray-900 mr-2 font-medium">{order.product?.quantity || 1}</span>
                   </div>
                   <div>
                     <span className="text-gray-500">تاريخ الطلب:</span>

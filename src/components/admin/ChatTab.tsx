@@ -65,6 +65,7 @@ const ChatTab = ({ onMessagesCountChange }: ChatTabProps) => {
 
   const statusColors = {
     open: 'bg-green-100 text-green-800 border-green-200',
+    active: 'bg-green-100 text-green-800 border-green-200',
     closed: 'bg-gray-100 text-gray-800 border-gray-200'
   };
 

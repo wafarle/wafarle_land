@@ -3,7 +3,23 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Edit, Trash2, Search, Filter, Star, X, Clock, Tag, Zap, Package, AlertCircle, XCircle } from 'lucide-react';
-import { Product, ProductOption, ProductType, Category } from '@/lib/firebase';
+import { Product, Category } from '@/lib/firebase';
+
+// Define types locally since they're not exported from firebase
+type ProductType = 'digital' | 'physical' | 'subscription';
+
+interface ProductOption {
+  id: string;
+  name: string;
+  nameEn?: string;
+  duration: number;
+  price: number;
+  originalPrice?: number;
+  discount?: number;
+  isPopular?: boolean;
+  features?: string[];
+  description?: string;
+}
 import { getCategories } from '@/lib/database';
 import CurrencyDisplay from '@/components/CurrencyDisplay';
 
@@ -73,14 +89,14 @@ export const ProductsTab = ({
               <h3 className="font-bold text-white text-lg">{product.name}</h3>
               <p className="text-sm text-white/60">{product.description}</p>
               {/* عرض حالة المخزون */}
-              {product.productType === 'physical' && product.stockManagementEnabled && (
+              {product.type === 'physical' && product.stock !== undefined && (
                 <div className="mt-2">
-                  {product.outOfStock || (product.stock || 0) <= 0 ? (
+                  {(product.stock || 0) <= 0 ? (
                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-500/20 text-red-400 rounded-lg text-xs font-semibold">
                       <X className="w-3 h-3" />
                       نفد من المخزون
                     </span>
-                  ) : (product.stock || 0) <= (product.lowStockThreshold || 10) ? (
+                  ) : (product.stock || 0) <= 10 ? (
                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-500/20 text-yellow-400 rounded-lg text-xs font-semibold">
                       <AlertCircle className="w-3 h-3" />
                       مخزون منخفض ({product.stock})
@@ -98,29 +114,19 @@ export const ProductsTab = ({
           
           {/* عرض السعر والخيارات */}
           <div className="mb-4">
-            {product.hasOptions && product.options && product.options.length > 0 ? (
+            {product.hasPriceOptions && product.priceOptions && product.priceOptions.length > 0 ? (
               <div>
                 <div className="flex items-center gap-2 mb-3">
                   <Clock className="w-4 h-4 text-blue-400" />
-                  <span className="text-white/80 text-sm font-medium">خيارات الاشتراك ({product.options.length}):</span>
+                  <span className="text-white/80 text-sm font-medium">خيارات السعر ({product.priceOptions.length}):</span>
                 </div>
                 <div className="space-y-2 max-h-32 overflow-y-auto pr-2">
-                  {product.options.map((option, index) => (
-                    <div key={option.id} className={`flex items-center justify-between p-2 rounded-lg border transition-all ${
-                      option.isPopular 
-                        ? 'bg-yellow-400/10 border-yellow-400/30' 
-                        : 'bg-white/5 border-white/10'
-                    }`}>
+                  {product.priceOptions.map((option, index) => (
+                    <div key={index} className="flex items-center justify-between p-2 rounded-lg border bg-white/5 border-white/10">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <span className="text-white font-medium text-sm">{option.name}</span>
-                          {option.isPopular && (
-                            <span className="bg-yellow-400 text-black px-1.5 py-0.5 rounded text-xs font-bold">
-                              شائع
-                            </span>
-                          )}
                         </div>
-                        <span className="text-white/60 text-xs">{option.duration} شهر</span>
                       </div>
                       <div className="text-right">
                         <CurrencyDisplay 
@@ -128,18 +134,6 @@ export const ProductsTab = ({
                           originalCurrency="USD" 
                           className="font-bold text-green-400 text-sm" 
                         />
-                        {option.originalPrice && option.originalPrice > option.price && (
-                          <div className="flex items-center gap-1">
-                            <span className="text-white/40 line-through text-xs">
-                              ${option.originalPrice}
-                            </span>
-                            {(option.discount && option.discount > 0) && (
-                              <span className="bg-red-500 text-white px-1 py-0.5 rounded text-xs">
-                                -{option.discount || 0}%
-                              </span>
-                            )}
-                          </div>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -228,31 +222,31 @@ export const ProductForm = ({
     discount: product?.discount || '',
     rating: product?.rating || 0,
     features: product?.features || [],
-    hasOptions: product?.hasOptions || false,
-    options: product?.options || [],
-    defaultOptionId: product?.defaultOptionId || '',
-    productType: product?.productType || 'digital' as ProductType,
-    // حقول المنتج الملموس
-    weight: product?.weight || 0,
-    dimensions: product?.dimensions || '',
-    requiresShipping: product?.requiresShipping !== undefined ? product.requiresShipping : true,
-    // حقول المنتج الرقمي/التنزيل
-    downloadLink: product?.downloadLink || '',
-    downloadExpiryDays: product?.downloadExpiryDays || 0,
-    // حقول الخدمة
-    serviceDuration: product?.serviceDuration || '',
-    serviceDetails: product?.serviceDetails || '',
-    // Inventory Management
-    stockManagementEnabled: product?.stockManagementEnabled || false,
+    hasOptions: product?.hasPriceOptions || false,
+    options: product?.priceOptions || [],
+    defaultOptionId: '',
+    productType: product?.type || 'digital' as ProductType,
+    // حقول المنتج الملموس - not in Product type
+    weight: 0,
+    dimensions: '',
+    requiresShipping: true,
+    // حقول المنتج الرقمي/التنزيل - not in Product type
+    downloadLink: '',
+    downloadExpiryDays: 0,
+    // حقول الخدمة - not in Product type
+    serviceDuration: '',
+    serviceDetails: '',
+    // Inventory Management - only stock exists in Product type
+    stockManagementEnabled: false,
     stock: product?.stock || 0,
-    lowStockThreshold: product?.lowStockThreshold || 10,
-    outOfStock: product?.outOfStock || false,
-    // Product Options (Colors & Sizes)
-    colors: product?.colors || [],
-    sizes: product?.sizes || [],
-    showColors: product?.showColors !== undefined ? product.showColors : false,
-    showSizes: product?.showSizes !== undefined ? product.showSizes : false,
-    showQuantity: product?.showQuantity !== undefined ? product.showQuantity : true,
+    lowStockThreshold: 10,
+    outOfStock: false,
+    // Product Options (Colors & Sizes) - not in Product type, using defaults
+    colors: [] as string[],
+    sizes: [] as string[],
+    showColors: false,
+    showSizes: false,
+    showQuantity: true,
   });
 
   const [currentOption, setCurrentOption] = useState<Partial<ProductOption>>({
@@ -301,15 +295,13 @@ export const ProductForm = ({
     });
   };
 
-  // حذف خيار
-  const removeOption = (optionId: string) => {
-    const updatedOptions = formData.options.filter(opt => opt.id !== optionId);
+  // حذف خيار - using index instead of id since priceOptions don't have ids
+  const removeOption = (index: number) => {
+    const updatedOptions = formData.options.filter((_, i) => i !== index);
     setFormData({
       ...formData,
       options: updatedOptions,
-      defaultOptionId: formData.defaultOptionId === optionId 
-        ? (updatedOptions.length > 0 ? updatedOptions[0].id : '') 
-        : formData.defaultOptionId,
+      defaultOptionId: formData.options.length > 0 ? formData.defaultOptionId : '',
     });
   };
 
@@ -334,7 +326,7 @@ export const ProductForm = ({
     }
 
     // التحقق من الحقول المطلوبة حسب نوع المنتج
-    if (formData.productType === 'download' && !formData.downloadLink) {
+    if (formData.productType === 'subscription' && !formData.externalLink) {
       alert('يرجى إدخال رابط التحميل للمنتج الذي يحتاج تنزيل');
       return;
     }
@@ -382,15 +374,15 @@ export const ProductForm = ({
       }
     }
     
-    if (formData.productType !== 'digital' && formData.productType !== 'download') {
+    // Clean up fields not relevant to the product type
+    if (formData.productType !== 'digital') {
       delete cleanedData.downloadLink;
       delete cleanedData.downloadExpiryDays;
     }
     
-    if (formData.productType !== 'service') {
-      delete cleanedData.serviceDuration;
-      delete cleanedData.serviceDetails;
-    }
+    // service is not a valid ProductType, always remove service fields
+    delete cleanedData.serviceDuration;
+    delete cleanedData.serviceDetails;
 
     onSave(cleanedData);
   };
@@ -907,8 +899,8 @@ export const ProductForm = ({
               </motion.div>
             )}
 
-            {/* حقول منتج التنزيل */}
-            {formData.productType === 'download' && (
+            {/* حقول منتج التنزيل - disabled: download is not a valid ProductType */}
+            {false && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
@@ -947,8 +939,8 @@ export const ProductForm = ({
               </motion.div>
             )}
 
-            {/* حقول الخدمة */}
-            {formData.productType === 'service' && (
+            {/* حقول الخدمة - disabled: service is not a valid ProductType */}
+            {false && (
               <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
@@ -1128,16 +1120,14 @@ export const ProductForm = ({
                     </h5>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {formData.options.map((option) => (
+                      {formData.options.map((option, index) => (
                         <motion.div
-                          key={option.id}
+                          key={index}
                           initial={{ opacity: 0, scale: 0.9 }}
                           animate={{ opacity: 1, scale: 1 }}
-                          className={`bg-white/5 border rounded-xl p-4 relative ${
-                            option.isPopular ? 'border-yellow-400/50 bg-yellow-400/5' : 'border-white/10'
-                          }`}
+                          className="bg-white/5 border border-white/10 rounded-xl p-4 relative"
                         >
-                          {option.isPopular && (
+                          {false && (
                             <div className="absolute -top-2 -right-2 bg-yellow-400 text-black px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1">
                               <Star className="w-3 h-3" />
                               الأكثر شعبية
@@ -1147,20 +1137,12 @@ export const ProductForm = ({
                           <div className="flex justify-between items-start">
                             <div className="flex-1">
                               <h6 className="text-white font-medium">{option.name}</h6>
-                              <p className="text-white/60 text-sm">{option.duration} شهر</p>
+                              {(option as any).duration && <p className="text-white/60 text-sm">{(option as any).duration} شهر</p>}
                               <div className="mt-2 flex items-center gap-2">
                                 <span className="text-green-400 font-bold">${option.price}</span>
-                                {option.originalPrice && option.originalPrice > option.price && (
-                                  <span className="text-white/40 line-through text-sm">${option.originalPrice}</span>
-                                )}
-                                {(option.discount && option.discount > 0) && (
-                                  <span className="bg-red-500 text-white px-1.5 py-0.5 rounded text-xs">
-                                    -{option.discount || 0}%
-                                  </span>
-                                )}
                               </div>
-                              {option.description && (
-                                <p className="text-white/50 text-xs mt-1">{option.description}</p>
+                              {(option as any).description && (
+                                <p className="text-white/50 text-xs mt-1">{(option as any).description}</p>
                               )}
                             </div>
                             
@@ -1169,20 +1151,20 @@ export const ProductForm = ({
                                 type="button"
                                 onClick={() => setFormData({
                                   ...formData,
-                                  defaultOptionId: option.id
+                                  defaultOptionId: String(index)
                                 })}
                                 className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                                  formData.defaultOptionId === option.id
+                                  formData.defaultOptionId === String(index)
                                     ? 'bg-blue-500 text-white'
                                     : 'bg-white/10 text-white/70 hover:bg-white/20'
                                 }`}
                               >
-                                {formData.defaultOptionId === option.id ? 'افتراضي' : 'تعيين كافتراضي'}
+                                {formData.defaultOptionId === String(index) ? 'افتراضي' : 'تعيين كافتراضي'}
                               </button>
                               
                               <button
                                 type="button"
-                                onClick={() => removeOption(option.id)}
+                                onClick={() => removeOption(index)}
                                 className="p-1 hover:bg-red-500/20 rounded transition-colors group"
                               >
                                 <X className="w-4 h-4 text-red-400 group-hover:text-red-300" />

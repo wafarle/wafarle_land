@@ -89,6 +89,17 @@ export function onMessageListener() {
   });
 }
 
+export interface ProductOption {
+  id?: string;
+  name: string;
+  price: number;
+  duration: string | number;
+  description?: string;
+  originalPrice?: number;
+  discount?: number;
+  isPopular?: boolean;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -102,6 +113,8 @@ export interface Product {
   categories?: string[]; // تصنيفات متعددة (IDs)
   discount?: string;
   rating?: number;
+  averageRating?: number;
+  reviewsCount?: number;
   features?: string[];
   type?: 'digital' | 'physical' | 'subscription';
   hasPriceOptions?: boolean;
@@ -126,8 +139,17 @@ export interface Product {
     price: number;
   }[];
   hasDurationOptions?: boolean;
+  hasOptions?: boolean;
+  options?: ProductOption[];
+  defaultOptionId?: string;
+  productType?: 'physical' | 'digital' | 'download' | 'subscription';
+  requiresShipping?: boolean;
+  stockManagementEnabled?: boolean;
+  downloadLink?: string;
   stock?: number;
+  lowStockThreshold?: number;
   inStock?: boolean;
+  outOfStock?: boolean;
   isAvailable?: boolean;
   deliveryTime?: string;
   reviews?: {
@@ -171,7 +193,13 @@ export interface Order {
   id: string;
   customerName: string;
   email?: string;
+  customerEmail?: string;
   phone: string;
+  customerPhone?: string;
+  productId?: string;
+  productPrice?: number;
+  productType?: 'physical' | 'digital' | 'download' | 'subscription';
+  quantity?: number;
   address?: string;
   city?: string;
   postalCode?: string;
@@ -187,11 +215,16 @@ export interface Order {
     image: string;
     quantity?: number;
   };
+  productName?: string;
   status: 'pending' | 'processing' | 'completed' | 'cancelled' | 'confirmed' | 'shipped';
   paymentStatus?: 'pending' | 'paid' | 'failed' | 'refunded';
   paymentMethod?: string;
   paymentProof?: string;
+  paymentGateway?: string;
+  paymentGatewayTransactionId?: string;
+  paymentGatewayOrderId?: string;
   totalPrice: number;
+  totalAmount?: number;
   originalPrice?: number;
   discount?: number;
   discountCode?: string;
@@ -199,11 +232,15 @@ export interface Order {
   tax?: number;
   shippingStatus?: 'pending' | 'preparing' | 'shipped' | 'out_for_delivery' | 'delivered';
   trackingNumber?: string;
+  shippingTrackingNumber?: string;
+  shippedAt?: Date;
   estimatedDelivery?: Date;
   notes?: string;
   staffNotes?: string;
   createdAt: Date;
   updatedAt?: Date;
+  confirmedAt?: Date;
+  deliveredAt?: Date;
   customerId?: string;
 }
 
@@ -218,11 +255,21 @@ export interface Customer {
   postalCode?: string;
   totalOrders?: number;
   totalSpent?: number;
+  averageOrderValue?: number;
   loyaltyPoints?: number;
+  totalLoyaltyPointsEarned?: number;
+  totalLoyaltyPointsRedeemed?: number;
+  loyaltyTier?: 'bronze' | 'silver' | 'gold' | 'platinum';
   tier?: 'bronze' | 'silver' | 'gold' | 'platinum';
   status?: 'active' | 'inactive' | 'blocked';
   notes?: string;
+  authProvider?: string;
+  avatar?: string;
+  gender?: string;
+  tags?: string[];
+  preferredPaymentMethod?: string;
   createdAt: Date;
+  registrationDate?: Date;
   lastOrderDate?: Date;
   wishlist?: string[]; // Product IDs
   compareList?: string[]; // Product IDs
@@ -238,23 +285,46 @@ export interface Customer {
 
 export interface Subscription {
   id: string;
-  name: string;
+  orderId?: string;
+  customerId?: string;
+  customerEmail?: string;
+  productId?: string;
+  productImage?: string;
+  name?: string;
+  productName?: string;
   description?: string;
   price: number;
-  duration: string; // e.g., "شهري", "سنوي"
+  duration?: string; // e.g., "شهري", "سنوي"
+  planType?: string;
+  durationMonths?: number;
   features?: string[];
   isActive?: boolean;
+  status?: 'active' | 'inactive' | 'expired';
+  autoRenewal?: boolean;
+  paymentStatus?: string;
+  remainingDays?: number;
+  usageCount?: number;
+  maxUsage?: number;
+  startDate?: Date;
+  endDate?: Date;
   createdAt: Date;
+  updatedAt?: Date;
+  notes?: string;
 }
 
 export interface ChatMessage {
   id: string;
   conversationId: string;
-  senderId: string;
-  senderType: 'staff' | 'customer';
-  senderName: string;
-  message: string;
+  senderId?: string;
+  senderType?: 'staff' | 'customer';
+  senderName?: string;
+  senderEmail?: string;
+  sender?: string;
+  content?: string;
+  message?: string;
   timestamp: Date;
+  status?: string;
+  type?: string;
   isRead?: boolean;
 }
 
@@ -263,12 +333,19 @@ export interface ChatConversation {
   customerId: string;
   customerName: string;
   customerEmail?: string;
-  status: 'open' | 'closed';
+  supportAgentId?: string;
+  supportAgentName?: string;
+  status: 'open' | 'closed' | 'active';
+  priority?: string;
+  category?: string;
+  subject?: string;
   lastMessage?: string;
   lastMessageTime?: Date;
   unreadCount?: number;
   createdAt: Date;
+  closedAt?: Date;
   assignedTo?: string;
+  tags?: string[];
 }
 
 export interface SubscriptionReview {
@@ -533,4 +610,4 @@ export interface BlogCategory {
   updatedAt: Date;
 }
 
-export { app, db, auth, googleProvider, analytics, messaging, requestNotificationPermission, onMessageListener };
+export { app, db, auth, googleProvider, analytics, messaging };

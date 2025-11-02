@@ -122,10 +122,10 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
     // Calculate price correctly based on product options or fallback to base price
     let totalPrice: number;
     
-    if (selectedProduct.hasOptions && selectedProduct.options) {
-      // Find the matching option
-      const matchingOption = selectedProduct.options.find(option => 
-        option.duration === duration && option.name === planType
+    if (selectedProduct.hasPriceOptions && selectedProduct.priceOptions) {
+      // Find the matching option - priceOptions only have {name, price}
+      const matchingOption = selectedProduct.priceOptions.find(option => 
+        option.name === planType
       );
       
       if (matchingOption) {
@@ -166,12 +166,12 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
     const { selectedProduct, selectedDuration, selectedPlan } = subscriptionFlow;
     
     if (confirmed && selectedProduct && selectedDuration) {
-      // التحقق من نوع المنتج: المنتجات الملموسة أو التي تحتاج تنزيل لا يمكن أن تكون اشتراكات
-      if (selectedProduct.productType === 'physical' || selectedProduct.productType === 'download') {
+      // التحقق من نوع المنتج: المنتجات الملموسة لا يمكن أن تكون اشتراكات
+      if (selectedProduct.type === 'physical') {
         if (conversationId) {
           await sendChatMessage(
             conversationId,
-            `❌ عذراً، المنتج "${selectedProduct.name}" من نوع ${selectedProduct.productType === 'physical' ? 'منتج ملموس' : 'منتج يحتاج تنزيل'} ولا يمكن إنشاء اشتراك له.\n\n💡 يمكنك طلب هذا المنتج من صفحة المنتجات مباشرة.`,
+            `❌ عذراً، المنتج "${selectedProduct.name}" من نوع ${selectedProduct.type === 'physical' ? 'منتج ملموس' : 'منتج يحتاج تنزيل'} ولا يمكن إنشاء اشتراك له.\n\n💡 يمكنك طلب هذا المنتج من صفحة المنتجات مباشرة.`,
             'support',
             'نظام الدعم',
             undefined
@@ -185,10 +185,10 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
         // Calculate correct price based on product options
         let finalPrice: number;
         
-        if (selectedProduct.hasOptions && selectedProduct.options) {
-          // Find the matching option
-          const matchingOption = selectedProduct.options.find(option => 
-            option.duration === selectedDuration && option.name === selectedPlan
+        if (selectedProduct.hasPriceOptions && selectedProduct.priceOptions) {
+          // Find the matching option - priceOptions only have {name, price}
+          const matchingOption = selectedProduct.priceOptions.find(option => 
+            option.name === selectedPlan
           );
           
           if (matchingOption) {
@@ -217,40 +217,30 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
         // First create an order
         const orderData = {
           customerName: customerName || 'عميل من الشات',
-          customerEmail: customerEmail || 'unknown@example.com',
-          customerPhone: 'غير متوفر', // Will be updated if provided
-          productId: selectedProduct.id,
-          productName: selectedProduct.name,
-          productPrice: finalPrice / selectedDuration, // Price per month
-          quantity: selectedDuration, // Duration as quantity
-          totalAmount: finalPrice,
+          email: customerEmail || 'unknown@example.com',
+          phone: 'غير متوفر', // Will be updated if provided
+          product: {
+            id: selectedProduct.id,
+            name: selectedProduct.name,
+            price: finalPrice / selectedDuration, // Price per month
+            image: selectedProduct.image,
+            quantity: selectedDuration // Duration as quantity
+          },
+          totalPrice: finalPrice,
           status: 'confirmed' as const, // Auto-confirm chat orders
-          paymentStatus: 'unpaid' as const, // Will be updated after payment
+          paymentStatus: 'pending' as const, // Will be updated after payment
           paymentMethod: 'card' as const, // Default method
           notes: `طلب من الشات - ${selectedPlan} لمدة ${selectedDuration} شهر - محادثة ${conversationId || 'unknown'}`
         };
         const orderId = await addOrder(orderData);
-        // Then create subscription linked to the order
+        // Create subscription with correct Subscription interface
         const subscriptionData = {
-          orderId: orderId, // Link to the actual order
-          customerId: customerEmail || 'unknown',
-          customerEmail: customerEmail || 'unknown@example.com',
-          productId: selectedProduct.id,
-          productName: selectedProduct.name,
-          productImage: selectedProduct.image,
-          planType: selectedPlan || 'monthly',
+          name: selectedProduct.name,
+          description: `${selectedPlan} - ${selectedDuration} شهر`,
           price: finalPrice,
-          startDate: startDate,
-          endDate: endDate,
-          durationMonths: selectedDuration,
-          status: 'pending' as const, // Pending until payment
-          autoRenewal: false,
-          paymentStatus: 'unpaid' as const, // Will be updated after payment
-          remainingDays: remainingDays,
-          usageCount: 0,
-          maxUsage: 9999,
+          duration: `${selectedDuration} شهر`,
           features: selectedProduct.features || [],
-          notes: `اشتراك من الشات - مرتبط بالطلب ${orderId}`
+          isActive: false // Will be activated after payment
         };
         const subscriptionId = await addSubscription(subscriptionData);
         await sendChatMessage(
@@ -309,7 +299,7 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
       // جلب جميع الطلبات للعميل
       const allOrders = await getOrders();
       const customerOrders = allOrders.filter(order =>
-        order.customerEmail.toLowerCase() === customerEmail.toLowerCase() &&
+        order.email?.toLowerCase() === customerEmail.toLowerCase() &&
         order.paymentStatus === 'paid' // فقط الطلبات المدفوعة
       );
 
@@ -434,15 +424,15 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
                   order.paymentMethod === 'bank_transfer' ? 'حوالة بنكية' :
                   order.paymentMethod === 'digital_wallet' ? 'محفظة رقمية' : 'نقدي'
                 }</p>
-                <p><strong>تاريخ الدفع:</strong> ${order.confirmedAt?.toLocaleDateString('ar-SA') || 'غير محدد'}</p>
+                <p><strong>تاريخ الطلب:</strong> ${order.createdAt.toLocaleDateString('ar-SA')}</p>
               </div>
             </div>
 
             <div class="customer-info">
               <h4>👤 معلومات العميل</h4>
               <p><strong>الاسم:</strong> ${order.customerName}</p>
-              <p><strong>البريد الإلكتروني:</strong> ${order.customerEmail}</p>
-              <p><strong>رقم الهاتف:</strong> ${order.customerPhone}</p>
+              <p><strong>البريد الإلكتروني:</strong> ${order.email || 'غير متوفر'}</p>
+              <p><strong>رقم الهاتف:</strong> ${order.phone}</p>
             </div>
 
             <table class="items-table">
@@ -456,17 +446,17 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
               </thead>
               <tbody>
                 <tr>
-                  <td>${order.productName}</td>
-                  <td>${order.quantity}</td>
-                  <td>${order.productPrice} ر.س</td>
-                  <td>${order.totalAmount} ر.س</td>
+                  <td>${order.product?.name || 'غير متوفر'}</td>
+                  <td>${order.product?.quantity || 1}</td>
+                  <td>${order.product?.price || 0} ر.س</td>
+                  <td>${order.totalPrice} ر.س</td>
                 </tr>
               </tbody>
             </table>
 
             <div class="total-section">
               <h3>💰 المجموع الإجمالي</h3>
-              <div class="total-amount">${order.totalAmount} ر.س</div>
+              <div class="total-amount">${order.totalPrice} ر.س</div>
               <p style="margin-top: 10px; color: #666;">شاملاً جميع الرسوم والضرائب</p>
             </div>
 
@@ -498,7 +488,7 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
 
       await sendChatMessage(
         conversationId!,
-        `✅ تم إنشاء فاتورتك بنجاح!\n\n📋 **تفاصيل الفاتورة:**\n• رقم الفاتورة: ${order.id.slice(-8)}\n• المنتج: ${order.productName}\n• المبلغ: ${order.totalAmount} ر.س\n• التاريخ: ${new Date().toLocaleDateString('ar-SA')}\n\n🖨️ تم فتح الفاتورة في نافذة جديدة يمكنك طباعتها أو حفظها.\n\n💡 يمكنك دائماً طلب فاتورة أخرى إذا احتجت لها.`,
+        `✅ تم إنشاء فاتورتك بنجاح!\n\n📋 **تفاصيل الفاتورة:**\n• رقم الفاتورة: ${order.id.slice(-8)}\n• المنتج: ${order.product?.name || 'غير متوفر'}\n• المبلغ: ${order.totalPrice} ر.س\n• التاريخ: ${new Date().toLocaleDateString('ar-SA')}\n\n🖨️ تم فتح الفاتورة في نافذة جديدة يمكنك طباعتها أو حفظها.\n\n💡 يمكنك دائماً طلب فاتورة أخرى إذا احتجت لها.`,
         'support',
         'سارة - فريق الدعم',
         undefined
@@ -781,16 +771,16 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
                   initial={{ opacity: 0, y: 20, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
-                  className={`flex ${message.sender === 'customer' ? 'justify-end' : 'justify-start'}`}
+                  className={`flex ${message.senderType === 'customer' ? 'justify-end' : 'justify-start'}`}
                 >
-                  <div className={`flex gap-3 max-w-[85%] ${message.sender === 'customer' ? 'flex-row-reverse' : ''}`}>
+                  <div className={`flex gap-3 max-w-[85%] ${message.senderType === 'customer' ? 'flex-row-reverse' : ''}`}>
                     {/* Avatar */}
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg ${
-                      message.sender === 'customer' 
+                      message.senderType === 'customer' 
                         ? 'bg-gradient-to-br from-slate-600 to-slate-700 text-white' 
                         : 'bg-gradient-to-br from-blue-500 to-purple-600 text-white'
                     }`}>
-                      {message.sender === 'customer' ? (
+                      {message.senderType === 'customer' ? (
                         <User className="w-5 h-5" />
                       ) : (
                         <Bot className="w-5 h-5" />
@@ -798,30 +788,30 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
                     </div>
 
                     {/* Message content */}
-                    <div className={`${message.sender === 'customer' ? 'text-right' : 'text-right'}`}>
-                      {message.sender === 'support' && message.senderName && (
+                    <div className={`${message.senderType === 'customer' ? 'text-right' : 'text-right'}`}>
+                      {message.senderType === 'staff' && message.senderName && (
                         <div className="text-xs text-slate-500 mb-1 font-medium">{message.senderName}</div>
                       )}
                       
                       <div className={`inline-block px-4 py-3 rounded-2xl shadow-sm ${
-                        message.sender === 'customer'
+                        message.senderType === 'customer'
                           ? 'bg-gradient-to-r from-slate-600 to-slate-700 text-white'
                           : 'bg-white text-slate-900 border border-slate-200'
                       }`}
                       style={{
-                        boxShadow: message.sender === 'customer' 
+                        boxShadow: message.senderType === 'customer' 
                           ? '0 4px 12px rgba(71, 85, 105, 0.3)' 
                           : '0 2px 8px rgba(0, 0, 0, 0.1)'
                       }}>
-                        <p className="text-sm leading-relaxed">{message.content}</p>
+                        <p className="text-sm leading-relaxed">{message.message}</p>
                       </div>
 
                       <div className={`flex items-center gap-1 mt-2 text-xs text-slate-500 ${
-                        message.sender === 'customer' ? 'justify-end' : 'justify-start'
+                        message.senderType === 'customer' ? 'justify-end' : 'justify-start'
                       }`}>
                         <Clock className="w-3 h-3" />
                         <span>{formatTime(message.timestamp)}</span>
-                        {message.sender === 'customer' && getMessageStatusIcon(message.status)}
+                        {message.senderType === 'customer' && getMessageStatusIcon(message.status)}
                       </div>
                     </div>
                   </div>
@@ -886,14 +876,14 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
                             <p className="font-bold text-slate-900 text-base">
                               طلب #{order.id.slice(-8)}
                             </p>
-                            <p className="text-sm text-slate-600 mt-1">{order.productName}</p>
+                            <p className="text-sm text-slate-600 mt-1">{order.product?.name || 'غير متوفر'}</p>
                             <p className="text-sm text-emerald-600 mt-2 font-medium">
                               {order.createdAt.toLocaleDateString('ar-SA')}
                             </p>
                           </div>
                           <div className="text-left">
                             <div className="text-emerald-600 font-bold text-lg">
-                              {order.totalAmount} ر.س
+                              {order.totalPrice} ر.س
                             </div>
                             <div className="flex items-center justify-end gap-1 mt-2">
                               <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full text-xs font-medium">
@@ -962,51 +952,24 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
                 <div className="space-y-4">
                   <h4 className="font-bold text-blue-900 mb-4 text-lg">اختر مدة الاشتراك:</h4>
                   <div className="grid gap-3">
-                    {subscriptionFlow.selectedProduct.hasOptions && subscriptionFlow.selectedProduct.options ? (
-                      // Use product options if available
-                      subscriptionFlow.selectedProduct.options.map((option) => (
+                    {subscriptionFlow.selectedProduct.hasPriceOptions && subscriptionFlow.selectedProduct.priceOptions ? (
+                      // Use product options if available (simplified - priceOptions only have name and price)
+                      subscriptionFlow.selectedProduct.priceOptions.map((option, index) => (
                         <motion.button
-                          key={option.id}
-                          onClick={() => handleDurationSelection(option.duration, option.name)}
+                          key={index}
+                          onClick={() => handleDurationSelection(1, option.name)}
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
-                          className={`text-right p-4 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 shadow-sm hover:shadow-md ${
-                            option.isPopular ? 'ring-2 ring-blue-300 relative' : ''
-                          }`}
+                          className="text-right p-4 bg-white border border-blue-200 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-all duration-200 shadow-sm hover:shadow-md"
                         >
-                          {option.isPopular && (
-                            <div className="absolute -top-2 -right-2 bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-bold">
-                              الأكثر شعبية
-                            </div>
-                          )}
                           <div className="flex justify-between items-center">
                             <div className="text-right">
-                              <p className="font-bold text-gray-900 text-base">{option.name} - {option.duration} شهر</p>
-                              {option.discount && option.discount > 0 && (
-                                <p className="text-sm text-green-600 mt-1 font-medium">خصم {option.discount}%</p>
-                              )}
-                              {option.description && (
-                                <p className="text-xs text-gray-500 mt-2">{option.description}</p>
-                              )}
+                              <p className="font-bold text-gray-900 text-base">{option.name}</p>
                             </div>
                             <div className="text-left">
-                              {option.originalPrice && option.originalPrice > option.price ? (
-                                <>
-                                  <div className="text-blue-600 font-bold text-lg">
-                                    {formatPrice(option.price)} <span className="text-xs text-gray-600">إجمالي</span>
-                                  </div>
-                                  <div className="text-xs text-gray-500 line-through">
-                                    {formatPrice(option.originalPrice)} 
-                                  </div>
-                                  <div className="text-xs text-green-600 font-medium">
-                                    وفر {formatPrice(option.originalPrice - option.price)}
-                                  </div>
-                                </>
-                              ) : (
-                                <div className="text-blue-600 font-bold text-lg">
-                                  {formatPrice(option.price)} <span className="text-xs text-gray-600">إجمالي</span>
-                                </div>
-                              )}
+                              <div className="text-blue-600 font-bold text-lg">
+                                {formatPrice(option.price)} <span className="text-xs text-gray-600">إجمالي</span>
+                              </div>
                             </div>
                           </div>
                         </motion.button>
@@ -1077,10 +1040,10 @@ const LiveChat = ({ customerName = 'عميل', customerEmail }: LiveChatProps) =
                       if (subscriptionFlow.selectedProduct && subscriptionFlow.selectedDuration && subscriptionFlow.selectedPlan) {
                         let finalPrice: number;
                         
-                        if (subscriptionFlow.selectedProduct.hasOptions && subscriptionFlow.selectedProduct.options) {
+                        if (subscriptionFlow.selectedProduct.hasPriceOptions && subscriptionFlow.selectedProduct.priceOptions) {
                           // Find the matching option
-                          const matchingOption = subscriptionFlow.selectedProduct.options.find(option => 
-                            option.duration === subscriptionFlow.selectedDuration && option.name === subscriptionFlow.selectedPlan
+                          const matchingOption = subscriptionFlow.selectedProduct.priceOptions.find(option => 
+                            option.name === subscriptionFlow.selectedPlan
                           );
                           
                           if (matchingOption) {

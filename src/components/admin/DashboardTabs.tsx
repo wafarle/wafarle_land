@@ -267,7 +267,7 @@ export const OverviewTab = () => {
                     طلب جديد من {order.customerName}
                   </span>
                   <div className="text-white/50 text-xs">
-                    {formatCurrency(order.totalAmount)} • {formatTimeAgo(order.createdAt)}
+                    {formatCurrency(order.totalPrice)} • {formatTimeAgo(order.createdAt)}
                   </div>
                 </div>
               </div>
@@ -292,7 +292,7 @@ export const OverviewTab = () => {
                 <h4 className="text-white font-medium mb-2 line-clamp-2">{post.title}</h4>
                 <p className="text-white/60 text-sm mb-3 line-clamp-2">{post.excerpt}</p>
                 <div className="flex items-center justify-between text-xs text-white/50">
-                  <span>{post.authorName}</span>
+                  <span>{(post as any).authorName || 'Admin'}</span>
                   <span>{formatTimeAgo(post.createdAt)}</span>
                 </div>
               </div>
@@ -380,7 +380,7 @@ export const AnalyticsTab = () => {
     if (!ordersData.length) return null;
 
     const confirmedOrders = ordersData.filter(o => o.status === 'confirmed' && o.paymentStatus === 'paid');
-    const totalRevenue = confirmedOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    const totalRevenue = confirmedOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
     const totalOrders = ordersData.length;
     const averageOrderValue = totalOrders > 0 ? totalRevenue / confirmedOrders.length : 0;
     const conversionRate = totalOrders > 0 ? (confirmedOrders.length / totalOrders) * 100 : 0;
@@ -398,17 +398,17 @@ export const AnalyticsTab = () => {
     const productSales: Record<string, { count: number; revenue: number; name: string }> = {};
     
     ordersData.forEach(order => {
-      if (order.status === 'confirmed' && order.paymentStatus === 'paid') {
-        const productId = order.productId;
+      if (order.status === 'confirmed' && order.paymentStatus === 'paid' && order.product?.id) {
+        const productId = order.product.id;
         if (!productSales[productId]) {
           productSales[productId] = {
             count: 0,
             revenue: 0,
-            name: order.productName
+            name: order.product.name
           };
         }
-        productSales[productId].count += order.quantity || 1;
-        productSales[productId].revenue += order.totalAmount || 0;
+        productSales[productId].count += order.product.quantity || 1;
+        productSales[productId].revenue += order.totalPrice || 0;
       }
     });
 
@@ -431,7 +431,7 @@ export const AnalyticsTab = () => {
       
       dailyData[dateKey].orders += 1;
       if (order.status === 'confirmed' && order.paymentStatus === 'paid') {
-        dailyData[dateKey].revenue += order.totalAmount || 0;
+        dailyData[dateKey].revenue += order.totalPrice || 0;
       }
     });
 
@@ -444,8 +444,10 @@ export const AnalyticsTab = () => {
     const customerOrderCounts: Record<string, number> = {};
     
     ordersData.forEach(order => {
-      const email = order.customerEmail;
-      customerOrderCounts[email] = (customerOrderCounts[email] || 0) + 1;
+      const email = order.email || order.customerName;
+      if (email) {
+        customerOrderCounts[email] = (customerOrderCounts[email] || 0) + 1;
+      }
     });
 
     const newCustomers = Object.values(customerOrderCounts).filter(count => count === 1).length;
@@ -465,18 +467,18 @@ export const AnalyticsTab = () => {
   const getCouponStats = () => {
     if (!couponsData.length) return null;
 
-    const usedCoupons = couponsData.filter(c => c.usageCount > 0);
+    const usedCoupons = couponsData.filter(c => (c.currentUses ?? 0) > 0);
     const totalDiscount = ordersData
-      .filter(o => o.discountAmount && o.status === 'confirmed')
-      .reduce((sum, o) => sum + (o.discountAmount || 0), 0);
+      .filter(o => o.discount && o.status === 'confirmed')
+      .reduce((sum, o) => sum + (o.discount || 0), 0);
     
     return {
       totalCoupons: couponsData.length,
       activeCoupons: couponsData.filter(c => c.isActive).length,
       usedCoupons: usedCoupons.length,
       totalDiscount,
-      averageDiscountPerOrder: ordersData.filter(o => o.discountAmount).length > 0
-        ? totalDiscount / ordersData.filter(o => o.discountAmount).length
+      averageDiscountPerOrder: ordersData.filter(o => o.discount).length > 0
+        ? totalDiscount / ordersData.filter(o => o.discount).length
         : 0
     };
   };
@@ -844,7 +846,7 @@ export const OrdersTab = () => {
                   <div>
                     <p className="text-white font-medium">{order.customerName || 'عميل غير محدد'}</p>
                     <p className="text-white/60 text-sm">
-                      {order.productName || 'منتج غير محدد'}
+                      {order.product?.name || 'منتج غير محدد'}
                     </p>
                     <div className="flex items-center gap-2 mt-1">
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -859,7 +861,7 @@ export const OrdersTab = () => {
                 </div>
                 <div className="text-right">
                   <CurrencyDisplay 
-                    price={order.totalAmount} 
+                    price={order.totalPrice} 
                     originalCurrency="SAR" 
                     className="text-white font-semibold" 
                   />
@@ -1214,16 +1216,16 @@ export const SettingsTab = () => {
                         type="color"
                         value={websiteSettings.customization?.theme?.primaryColor || '#3b82f6'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 primaryColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
                       />
@@ -1231,16 +1233,16 @@ export const SettingsTab = () => {
                         type="text"
                         value={websiteSettings.customization?.theme?.primaryColor || '#3b82f6'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 primaryColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="#3b82f6"
@@ -1255,16 +1257,16 @@ export const SettingsTab = () => {
                         type="color"
                         value={websiteSettings.customization?.theme?.secondaryColor || '#8b5cf6'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 secondaryColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
                       />
@@ -1272,16 +1274,16 @@ export const SettingsTab = () => {
                         type="text"
                         value={websiteSettings.customization?.theme?.secondaryColor || '#8b5cf6'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 secondaryColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="#8b5cf6"
@@ -1296,16 +1298,16 @@ export const SettingsTab = () => {
                         type="color"
                         value={websiteSettings.customization?.theme?.accentColor || '#10b981'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 accentColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
                       />
@@ -1313,16 +1315,16 @@ export const SettingsTab = () => {
                         type="text"
                         value={websiteSettings.customization?.theme?.accentColor || '#10b981'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 accentColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="#10b981"
@@ -1337,16 +1339,16 @@ export const SettingsTab = () => {
                         type="color"
                         value={websiteSettings.customization?.theme?.backgroundColor || '#ffffff'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 backgroundColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
                       />
@@ -1354,16 +1356,16 @@ export const SettingsTab = () => {
                         type="text"
                         value={websiteSettings.customization?.theme?.backgroundColor || '#ffffff'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 backgroundColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="#ffffff"
@@ -1378,16 +1380,16 @@ export const SettingsTab = () => {
                         type="color"
                         value={websiteSettings.customization?.theme?.textColor || '#1f2937'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 textColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
                       />
@@ -1395,16 +1397,16 @@ export const SettingsTab = () => {
                         type="text"
                         value={websiteSettings.customization?.theme?.textColor || '#1f2937'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 textColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="#1f2937"
@@ -1419,16 +1421,16 @@ export const SettingsTab = () => {
                         type="color"
                         value={websiteSettings.customization?.theme?.borderColor || '#e5e7eb'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 borderColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
                       />
@@ -1436,16 +1438,16 @@ export const SettingsTab = () => {
                         type="text"
                         value={websiteSettings.customization?.theme?.borderColor || '#e5e7eb'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 borderColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="#e5e7eb"
@@ -1460,16 +1462,16 @@ export const SettingsTab = () => {
                         type="color"
                         value={websiteSettings.customization?.theme?.successColor || '#10b981'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 successColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
                       />
@@ -1477,16 +1479,16 @@ export const SettingsTab = () => {
                         type="text"
                         value={websiteSettings.customization?.theme?.successColor || '#10b981'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 successColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="#10b981"
@@ -1501,16 +1503,16 @@ export const SettingsTab = () => {
                         type="color"
                         value={websiteSettings.customization?.theme?.warningColor || '#f59e0b'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 warningColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
                       />
@@ -1518,16 +1520,16 @@ export const SettingsTab = () => {
                         type="text"
                         value={websiteSettings.customization?.theme?.warningColor || '#f59e0b'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 warningColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="#f59e0b"
@@ -1542,16 +1544,16 @@ export const SettingsTab = () => {
                         type="color"
                         value={websiteSettings.customization?.theme?.errorColor || '#ef4444'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 errorColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="w-16 h-12 rounded-lg border border-white/20 cursor-pointer"
                       />
@@ -1559,16 +1561,16 @@ export const SettingsTab = () => {
                         type="text"
                         value={websiteSettings.customization?.theme?.errorColor || '#ef4444'}
                         onChange={(e) => {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               theme: {
-                                ...(prev.customization?.theme || {}),
+                                ...websiteSettings.customization?.theme,
                                 errorColor: e.target.value
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }}
                         className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="#ef4444"
@@ -1591,16 +1593,16 @@ export const SettingsTab = () => {
                     <select
                       value={websiteSettings.customization?.typography?.fontFamily || 'Cairo, sans-serif'}
                       onChange={(e) => {
-                        setWebsiteSettings(prev => ({
-                          ...prev,
+                        setWebsiteSettings({
+                          ...websiteSettings,
                           customization: {
-                            ...(prev.customization || {}),
+                            ...websiteSettings.customization,
                             typography: {
-                              ...(prev.customization?.typography || {}),
+                              ...websiteSettings.customization?.typography,
                               fontFamily: e.target.value
-                            } as any
+                            }
                           }
-                        }));
+                        } as any);
                       }}
                       className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
@@ -1624,16 +1626,16 @@ export const SettingsTab = () => {
                     <select
                       value={websiteSettings.customization?.typography?.headingFont || 'Cairo, sans-serif'}
                       onChange={(e) => {
-                        setWebsiteSettings(prev => ({
-                          ...prev,
+                        setWebsiteSettings({
+                          ...websiteSettings,
                           customization: {
-                            ...(prev.customization || {}),
+                            ...websiteSettings.customization,
                             typography: {
-                              ...(prev.customization?.typography || {}),
+                              ...websiteSettings.customization?.typography,
                               headingFont: e.target.value
-                            } as any
+                            }
                           }
-                        }));
+                        } as any);
                       }}
                       className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
@@ -1657,16 +1659,16 @@ export const SettingsTab = () => {
                     <select
                       value={websiteSettings.customization?.typography?.bodyFont || 'Cairo, sans-serif'}
                       onChange={(e) => {
-                        setWebsiteSettings(prev => ({
-                          ...prev,
+                        setWebsiteSettings({
+                          ...websiteSettings,
                           customization: {
-                            ...(prev.customization || {}),
+                            ...websiteSettings.customization,
                             typography: {
-                              ...(prev.customization?.typography || {}),
+                              ...websiteSettings.customization?.typography,
                               bodyFont: e.target.value
-                            } as any
+                            }
                           }
-                        }));
+                        } as any);
                       }}
                       className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
@@ -1693,16 +1695,16 @@ export const SettingsTab = () => {
                       onChange={(e) => {
                         const customFont = e.target.value.trim();
                         if (customFont) {
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               typography: {
-                                ...(prev.customization?.typography || {}),
+                                ...websiteSettings.customization?.typography,
                                 fontFamily: `${customFont}, sans-serif`
-                              } as any
+                              }
                             }
-                          }));
+                          } as any);
                         }
                       }}
                       className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1730,13 +1732,13 @@ export const SettingsTab = () => {
                         onChange={(e) => {
                           const newCategories = [...(websiteSettings.customization?.categories || [])];
                           newCategories[index].name = e.target.value;
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               categories: newCategories
                             }
-                          }));
+                          } as any);
                         }}
                         className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="اسم الفئة"
@@ -1747,13 +1749,13 @@ export const SettingsTab = () => {
                         onChange={(e) => {
                           const newCategories = [...(websiteSettings.customization?.categories || [])];
                           newCategories[index].order = parseInt(e.target.value);
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               categories: newCategories
                             }
-                          }));
+                          } as any);
                         }}
                         className="w-20 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         placeholder="الترتيب"
@@ -1761,13 +1763,13 @@ export const SettingsTab = () => {
                       <button
                         onClick={() => {
                           const newCategories = (websiteSettings.customization?.categories || []).filter((_, i) => i !== index);
-                          setWebsiteSettings(prev => ({
-                            ...prev,
+                          setWebsiteSettings({
+                            ...websiteSettings,
                             customization: {
-                              ...(prev.customization || {}),
+                              ...websiteSettings.customization,
                               categories: newCategories
                             }
-                          }));
+                          } as any);
                         }}
                         className="text-red-400 hover:text-red-300 p-2"
                       >
@@ -1792,7 +1794,7 @@ export const SettingsTab = () => {
                           ...(prev.customization || {}),
                           categories: newCategories
                         }
-                      }));
+                      } as any));
                     }}
                     className="w-full px-4 py-3 bg-white/10 border-2 border-dashed border-white/30 rounded-lg text-white/50 hover:border-white/50 hover:text-white flex items-center justify-center gap-2 transition-all"
                   >

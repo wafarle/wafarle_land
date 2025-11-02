@@ -250,7 +250,7 @@ const OrderForm = ({ product, isOpen, onClose, selectedOptionId }: OrderFormProp
     try {
       // Check stock availability for physical products
       if (product.productType === 'physical' && product.stockManagementEnabled) {
-        const requestedQuantity = selectedOption?.duration || 1;
+        const requestedQuantity = typeof selectedOption?.duration === 'number' ? selectedOption.duration : 1;
         const stockCheck = await checkProductStock(product.id, requestedQuantity);
         
         if (!stockCheck.available) {
@@ -292,13 +292,13 @@ const OrderForm = ({ product, isOpen, onClose, selectedOptionId }: OrderFormProp
         productId: product.id,
         productName: productDisplayName,
         productPrice: originalAmount,
-        quantity: selectedOption?.duration || 1,
+        quantity: typeof selectedOption?.duration === 'number' ? selectedOption.duration : 1,
         totalAmount: finalPrice,
         originalAmount: discountAmount > 0 ? originalAmount : undefined,
         discountCode: discountCode || undefined,
         discountAmount: discountAmount > 0 ? discountAmount : undefined,
         status: 'pending' as const,
-        paymentStatus: 'unpaid' as const,
+        paymentStatus: 'pending' as const,
         paymentMethod: 'card' as const, // Default payment method
         notes: selectedOption 
           ? `خطة: ${selectedOption.name} | مدة: ${selectedOption.duration} شهر${selectedOption.description ? ` | وصف: ${selectedOption.description}` : ''}${selectedOption.originalPrice && selectedOption.price < selectedOption.originalPrice ? ` | خصم: ${Math.round(((selectedOption.originalPrice - selectedOption.price) / selectedOption.originalPrice) * 100)}%` : ''}${discountCode ? ` | كود خصم: ${discountCode}` : ''}`
@@ -362,7 +362,7 @@ const OrderForm = ({ product, isOpen, onClose, selectedOptionId }: OrderFormProp
     try {
       // Update order with payment information
       await updateOrder(createdOrderId, {
-        paymentStatus: paymentIntent.status === 'succeeded' ? 'paid' : 'unpaid',
+        paymentStatus: paymentIntent.status === 'succeeded' ? 'paid' : 'pending',
         paymentGateway: paymentIntent.gateway,
         paymentGatewayTransactionId: paymentIntent.transactionId,
         paymentGatewayOrderId: paymentIntent.gatewayOrderId,
