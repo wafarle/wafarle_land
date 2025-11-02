@@ -570,10 +570,20 @@ export const getChatConversations = async (): Promise<ChatConversation[]> => {
   }
 
   try {
-    const q = query(chatConversationsCollection, orderBy('lastMessageTime', 'desc'));
+    // ✅ جلب domain المتجر الحالي
+    const domain = getCurrentDomain();
+    console.log('🔍 Getting chat conversations for domain:', domain);
+    
+    // ✅ فلترة حسب domain فقط!
+    const q = query(
+      chatConversationsCollection,
+      where('domain', '==', domain),
+      orderBy('lastMessageTime', 'desc')
+    );
+    
     const querySnapshot = await getDocs(q);
     
-    return querySnapshot.docs.map(doc => {
+    const conversations = querySnapshot.docs.map(doc => {
       const data = doc.data() as any;
       return {
       id: doc.id,
@@ -583,6 +593,9 @@ export const getChatConversations = async (): Promise<ChatConversation[]> => {
         closedAt: data.closedAt?.toDate()
       };
     });
+    
+    console.log(`✅ Found ${conversations.length} conversations for domain: ${domain}`);
+    return conversations;
   } catch (error) {
     console.error('Error getting chat conversations:', error);
     return mockChatConversations;
@@ -599,7 +612,16 @@ export const subscribeToChatConversations = (
   }
 
   try {
-    const q = query(chatConversationsCollection, orderBy('lastMessageTime', 'desc'));
+    // ✅ جلب domain المتجر الحالي
+    const domain = getCurrentDomain();
+    console.log('👂 Subscribing to chat conversations for domain:', domain);
+    
+    // ✅ فلترة حسب domain فقط!
+    const q = query(
+      chatConversationsCollection,
+      where('domain', '==', domain),
+      orderBy('lastMessageTime', 'desc')
+    );
     
     return onSnapshot(q, (querySnapshot) => {
       const conversations = querySnapshot.docs.map(doc => {
@@ -612,6 +634,8 @@ export const subscribeToChatConversations = (
           closedAt: data.closedAt?.toDate()
         };
       });
+      
+      console.log(`🔄 Chat conversations updated: ${conversations.length} for domain: ${domain}`);
       callback(conversations);
     }, (error) => {
       console.error('Error in conversations subscription:', error);
@@ -708,11 +732,21 @@ export const getOrCreateConversation = async (customerEmail: string, customerNam
   }
 
   try {
-    // Check if conversation already exists
-    const q = query(chatConversationsCollection, where('customerEmail', '==', customerEmail), where('status', '==', 'active'));
+    // ✅ جلب domain المتجر الحالي
+    const domain = getCurrentDomain();
+    console.log('💬 Getting/Creating conversation for domain:', domain);
+    
+    // Check if conversation already exists (للنطاق الحالي فقط!)
+    const q = query(
+      chatConversationsCollection,
+      where('customerEmail', '==', customerEmail),
+      where('domain', '==', domain), // ✅ فلترة domain!
+      where('status', '==', 'active')
+    );
     const querySnapshot = await getDocs(q);
     
     if (!querySnapshot.empty) {
+      console.log('✅ Existing conversation found');
       return querySnapshot.docs[0].id;
     }
 
@@ -729,7 +763,10 @@ export const getOrCreateConversation = async (customerEmail: string, customerNam
     };
 
     // Filter out undefined values to prevent Firebase errors
-    const filteredConversationData: Record<string, any> = {};
+    const filteredConversationData: Record<string, any> = {
+      domain // ✅ إضافة domain!
+    };
+    
     Object.entries(conversationData).forEach(([key, value]) => {
       if (value !== undefined) {
         filteredConversationData[key] = value;
@@ -737,6 +774,7 @@ export const getOrCreateConversation = async (customerEmail: string, customerNam
     });
 
     const docRef = await addDoc(chatConversationsCollection, filteredConversationData);
+    console.log(`✅ New conversation created for domain: ${domain}`);
     return docRef.id;
   } catch (error) {
     console.error('Error getting/creating conversation:', error);
@@ -769,6 +807,10 @@ export const sendChatMessage = async (
   }
 
   try {
+    // ✅ إضافة domain تلقائياً للرسالة
+    const domain = getCurrentDomain();
+    console.log('💬 Sending chat message for domain:', domain);
+    
     const messageData: Omit<ChatMessage, 'id'> = {
       conversationId,
       content,
@@ -781,7 +823,10 @@ export const sendChatMessage = async (
     };
 
     // Filter out undefined values to prevent Firebase errors
-    const filteredMessageData: Record<string, any> = {};
+    const filteredMessageData: Record<string, any> = {
+      domain // ✅ إضافة domain!
+    };
+    
     Object.entries(messageData).forEach(([key, value]) => {
       if (value !== undefined) {
         filteredMessageData[key] = value;
@@ -794,6 +839,7 @@ export const sendChatMessage = async (
     }
 
     const docRef = await addDoc(chatMessagesCollection, filteredMessageData);
+    console.log(`✅ Chat message added for domain: ${domain}`);
     
     // Update conversation last message - check if conversation exists first
     try {
@@ -858,7 +904,12 @@ export const getChatMessages = async (conversationId: string): Promise<ChatMessa
   }
 
   try {
+    // ✅ جلب domain المتجر الحالي
+    const domain = getCurrentDomain();
+    console.log('💬 Getting chat messages for domain:', domain, 'conversation:', conversationId);
+    
     // Try the compound query first (requires index)
+    // نستخدم conversationId فقط لأن domain موجود في conversation نفسها
     let q = query(
       chatMessagesCollection, 
       where('conversationId', '==', conversationId),
@@ -875,6 +926,11 @@ export const getChatMessages = async (conversationId: string): Promise<ChatMessa
         timestamp: data.timestamp?.toDate() || new Date()
       };
     });
+    
+    // ✅ فلترة بعد الجلب (لتجنب مشكلة Index)
+    messages = messages.filter(msg => !msg.domain || msg.domain === domain);
+    
+    console.log(`✅ Found ${messages.length} messages for conversation`);
 
     // Sort manually since we got the data
     messages = messages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
